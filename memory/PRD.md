@@ -46,6 +46,19 @@ Build a modern, responsive web application for a student housing issue reporting
 - [x] Filter dashboard by property
 - [x] Stats filter by selected property
 
+### Phase 3 - Profile Management (Jan 2026)
+- [x] Profile page accessible via student name in nav
+- [x] Editable fields: voornaam, achternaam, telefoonnummer
+- [x] Email address read-only with lock icon
+- [x] Email change request flow with landlord approval
+- [x] Secure token-based approval links
+- [x] Landlord approval/rejection with optional reason
+- [x] Email change request history
+- [x] Pending request status display
+- [x] Cancel pending request functionality
+- [x] Room/floor/property info read-only display
+- [x] Dutch UI labels throughout
+
 ## Tech Stack
 - Frontend: React + Tailwind CSS + Shadcn UI + Framer Motion
 - Backend: FastAPI + Motor (async MongoDB)
