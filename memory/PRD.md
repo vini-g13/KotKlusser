@@ -59,6 +59,15 @@ Build a modern, responsive web application for a student housing issue reporting
 - [x] Room/floor/property info read-only display
 - [x] Dutch UI labels throughout
 
+### Phase 3b - Landlord Profile & Floor Configuration (Mar 2026)
+- [x] Landlord profile page with editable name, phone, company
+- [x] Landlord email change with self-confirmation to new email
+- [x] Building floor configuration (floor_count) at property creation
+- [x] Auto-generated floor labels (Gelijkvloers, Verdieping 1, 2, etc.)
+- [x] Student floor selection dropdown (replaces free-text input)
+- [x] Dropdown populated from property's configured floors
+- [x] Works in both JoinProperty page and RegisterPage with code
+
 ## Tech Stack
 - Frontend: React + Tailwind CSS + Shadcn UI + Framer Motion
 - Backend: FastAPI + Motor (async MongoDB)
@@ -68,12 +77,11 @@ Build a modern, responsive web application for a student housing issue reporting
 
 ## Prioritized Backlog
 ### P0 (Critical) - Done ✓
-- All core features implemented
+- All core features implemented including floor configuration
 
 ### P1 (High Priority)
+- Email notification activation (requires Resend API key from user)
 - Push notifications
-- Email notification activation (requires Resend API key)
-- Profile/settings page
 
 ### P2 (Medium Priority)
 - Multi-language support (French, English)
