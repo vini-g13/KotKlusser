@@ -17,7 +17,9 @@ import PropertyOnboarding from "./pages/PropertyOnboarding";
 import PropertyDetail from "./pages/PropertyDetail";
 import JoinProperty from "./pages/JoinProperty";
 import ProfilePage from "./pages/ProfilePage";
+import LandlordProfilePage from "./pages/LandlordProfilePage";
 import EmailChangeApproval from "./pages/EmailChangeApproval";
+import ConfirmEmail from "./pages/ConfirmEmail";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -217,6 +219,14 @@ function AppRoutes() {
           <ProtectedRoute allowedRoles={['landlord']}>
             <PageWrapper><EmailChangeApproval /></PageWrapper>
           </ProtectedRoute>
+        } />
+        <Route path="/verhuurder/profiel" element={
+          <ProtectedRoute allowedRoles={['landlord']}>
+            <PageWrapper><LandlordProfilePage /></PageWrapper>
+          </ProtectedRoute>
+        } />
+        <Route path="/bevestig-email/:token" element={
+          <PageWrapper><ConfirmEmail /></PageWrapper>
         } />
       </Routes>
     </AnimatePresence>

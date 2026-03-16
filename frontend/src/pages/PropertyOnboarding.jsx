@@ -5,7 +5,7 @@ import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { Building2, MapPin, ArrowRight, Sparkles } from "lucide-react";
+import { Building2, MapPin, ArrowRight, Sparkles, Layers } from "lucide-react";
 import { motion } from "framer-motion";
 
 const PropertyOnboarding = () => {
@@ -14,7 +14,8 @@ const PropertyOnboarding = () => {
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
-    address: ""
+    address: "",
+    floor_count: 5
   });
 
   const handleSubmit = async (e) => {
@@ -93,6 +94,27 @@ const PropertyOnboarding = () => {
                   data-testid="property-address-input"
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="floor_count" className="text-slate-300">Aantal verdiepingen</Label>
+              <div className="relative">
+                <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                <Input
+                  id="floor_count"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.floor_count}
+                  onChange={(e) => setFormData({ ...formData, floor_count: parseInt(e.target.value) || 0 })}
+                  placeholder="5"
+                  className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  data-testid="property-floors-input"
+                />
+              </div>
+              <p className="text-xs text-slate-500">
+                Genereert automatisch: Gelijkvloers + Verdieping 1 t/m {formData.floor_count}
+              </p>
             </div>
 
             <Button 

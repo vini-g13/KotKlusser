@@ -295,18 +295,28 @@ const RegisterPage = () => {
                     <div className="space-y-2">
                       <Label htmlFor="floor" className="text-slate-300">Verdieping</Label>
                       <div className="relative">
-                        <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                        <Input
+                        <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none z-10" />
+                        <select
                           id="floor"
                           name="floor"
-                          type="text"
                           value={formData.floor}
                           onChange={handleChange}
-                          placeholder="1"
                           required={!!formData.join_code}
-                          className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
-                          data-testid="register-floor-input"
-                        />
+                          className="w-full pl-10 pr-4 h-12 bg-[#161425] border border-white/10 text-white rounded-md focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
+                          data-testid="register-floor-select"
+                        >
+                          <option value="" disabled className="bg-[#161425] text-slate-500">Selecteer</option>
+                          {propertyInfo?.floors?.map((floor) => (
+                            <option key={floor.value} value={floor.value} className="bg-[#161425] text-white">
+                              {floor.label}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
                   </div>

@@ -52,7 +52,7 @@ const LandlordDashboard = () => {
   
   // New property dialog
   const [showNewProperty, setShowNewProperty] = useState(false);
-  const [newPropertyData, setNewPropertyData] = useState({ name: "", address: "" });
+  const [newPropertyData, setNewPropertyData] = useState({ name: "", address: "", floor_count: 5 });
   const [creatingProperty, setCreatingProperty] = useState(false);
   
   // Email change requests
@@ -127,7 +127,7 @@ const LandlordDashboard = () => {
     try {
       const response = await authAxios.post("/properties", newPropertyData);
       setProperties([...properties, response.data]);
-      setNewPropertyData({ name: "", address: "" });
+      setNewPropertyData({ name: "", address: "", floor_count: 5 });
       setShowNewProperty(false);
       await refreshUser();
       toast.success("Pand aangemaakt!");
@@ -234,6 +234,22 @@ const LandlordDashboard = () => {
                       data-testid="new-property-address"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Aantal verdiepingen</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="50"
+                      value={newPropertyData.floor_count}
+                      onChange={(e) => setNewPropertyData({ ...newPropertyData, floor_count: parseInt(e.target.value) || 0 })}
+                      placeholder="5"
+                      className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                      data-testid="new-property-floors"
+                    />
+                    <p className="text-xs text-slate-500">
+                      Genereert: Gelijkvloers + Verdieping 1 t/m {newPropertyData.floor_count}
+                    </p>
+                  </div>
                 </div>
                 <DialogFooter>
                   <Button
@@ -258,15 +274,15 @@ const LandlordDashboard = () => {
         </nav>
 
         <div className="p-4 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-4">
+          <Link to="/verhuurder/profiel" className="flex items-center gap-3 mb-4 group" data-testid="landlord-profile-link">
             <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
               {user?.name?.charAt(0).toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-white font-medium truncate">{user?.name}</p>
+              <p className="text-white font-medium truncate group-hover:text-indigo-400 transition-colors">{user?.name}</p>
               <p className="text-xs text-slate-400">Verhuurder</p>
             </div>
-          </div>
+          </Link>
           <Button 
             variant="outline" 
             className="w-full border-white/10 text-slate-400 hover:text-white"

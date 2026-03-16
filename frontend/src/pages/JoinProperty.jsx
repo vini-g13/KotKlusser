@@ -40,7 +40,7 @@ const JoinProperty = () => {
   const handleJoin = async (e) => {
     e.preventDefault();
     
-    if (!formData.room_number.trim() || !formData.floor.trim()) {
+    if (!formData.room_number.trim() || !formData.floor) {
       toast.error("Vul alle velden in");
       return;
     }
@@ -257,17 +257,27 @@ const JoinProperty = () => {
             <div className="space-y-2">
               <Label htmlFor="floor" className="text-slate-300">Verdieping</Label>
               <div className="relative">
-                <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                <Input
+                <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none z-10" />
+                <select
                   id="floor"
-                  type="text"
                   value={formData.floor}
                   onChange={(e) => setFormData({ ...formData, floor: e.target.value })}
-                  placeholder="Bijv. 0, 1, 2"
                   required
-                  className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
-                  data-testid="floor-input"
-                />
+                  className="w-full pl-10 pr-4 h-12 bg-[#1C1A2E] border border-white/10 text-white rounded-md focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
+                  data-testid="floor-select"
+                >
+                  <option value="" disabled className="bg-[#1C1A2E] text-slate-500">Selecteer verdieping</option>
+                  {property?.floors?.map((floor) => (
+                    <option key={floor.value} value={floor.value} className="bg-[#1C1A2E] text-white">
+                      {floor.label}
+                    </option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
 

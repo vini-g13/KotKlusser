@@ -78,10 +78,12 @@ class UserResponse(BaseModel):
 class PropertyCreate(BaseModel):
     name: str
     address: str
+    floor_count: int = 5  # Number of floors (0 = ground floor + N floors above)
 
 class PropertyUpdate(BaseModel):
     name: Optional[str] = None
     address: Optional[str] = None
+    floor_count: Optional[int] = None
 
 class PropertyResponse(BaseModel):
     id: str
@@ -90,6 +92,8 @@ class PropertyResponse(BaseModel):
     landlord_id: str
     join_code: str
     join_link: str
+    floor_count: int = 5
+    floors: List[dict] = []  # List of {value: "0", label: "Gelijkvloers"} etc
     tenant_count: int = 0
     created_at: str
 
@@ -112,6 +116,10 @@ class ProfileUpdate(BaseModel):
     first_name: Optional[str] = None
     last_name: Optional[str] = None
     phone: Optional[str] = None
+    company_name: Optional[str] = None  # Only for landlords
+
+class LandlordEmailChangeRequest(BaseModel):
+    new_email: EmailStr
 
 class EmailChangeRequest(BaseModel):
     new_email: EmailStr
@@ -127,6 +135,7 @@ class ProfileResponse(BaseModel):
     last_name: str
     phone: Optional[str] = None
     role: str
+    company_name: Optional[str] = None  # Only for landlords
     property_id: Optional[str] = None
     property_name: Optional[str] = None
     room_number: Optional[str] = None
@@ -227,6 +236,16 @@ def combine_name(first_name: str, last_name: str) -> str:
     if last_name:
         return f"{first_name} {last_name}"
     return first_name
+
+def generate_floors(floor_count: int) -> List[dict]:
+    """Generate floor options from 0 (ground floor) to floor_count"""
+    floors = []
+    for i in range(floor_count + 1):
+        if i == 0:
+            floors.append({"value": "0", "label": "Gelijkvloers"})
+        else:
+            floors.append({"value": str(i), "label": f"Verdieping {i}"})
+    return floors
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -420,11 +439,18 @@ async def get_profile(user: dict = Depends(get_current_user)):
     # Split name into first and last
     first_name, last_name = split_name(user.get('name', ''))
     
-    # Check for pending email change request
+    # Check for pending email change request (for both students and landlords)
     pending_request = await db.email_change_requests.find_one(
         {'student_id': user['id'], 'status': 'pending'},
         {'_id': 0}
     )
+    
+    # Also check landlord email change requests
+    if not pending_request and user['role'] == 'landlord':
+        pending_request = await db.landlord_email_changes.find_one(
+            {'landlord_id': user['id'], 'status': 'pending'},
+            {'_id': 0}
+        )
     
     pending_email_change = None
     if pending_request:
@@ -441,6 +467,7 @@ async def get_profile(user: dict = Depends(get_current_user)):
         last_name=last_name,
         phone=user.get('phone'),
         role=user['role'],
+        company_name=user.get('company_name'),
         property_id=user.get('property_id'),
         property_name=property_name,
         room_number=user.get('room_number'),
@@ -451,7 +478,7 @@ async def get_profile(user: dict = Depends(get_current_user)):
 
 @api_router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current_user)):
-    """Update user profile (name, phone). Email cannot be changed directly."""
+    """Update user profile (name, phone, company_name). Email cannot be changed directly."""
     update_data = {}
     
     # Get current first/last name
@@ -466,6 +493,10 @@ async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current
     
     if update.phone is not None:
         update_data['phone'] = update.phone
+    
+    # Company name only for landlords
+    if update.company_name is not None and user['role'] == 'landlord':
+        update_data['company_name'] = update.company_name
     
     if update_data:
         await db.users.update_one({'id': user['id']}, {'$set': update_data})
@@ -487,6 +518,12 @@ async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current
         {'_id': 0}
     )
     
+    if not pending_request and user['role'] == 'landlord':
+        pending_request = await db.landlord_email_changes.find_one(
+            {'landlord_id': user['id'], 'status': 'pending'},
+            {'_id': 0}
+        )
+    
     pending_email_change = None
     if pending_request:
         pending_email_change = {
@@ -502,6 +539,7 @@ async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current
         last_name=last_name,
         phone=updated_user.get('phone'),
         role=updated_user['role'],
+        company_name=updated_user.get('company_name'),
         property_id=updated_user.get('property_id'),
         property_name=property_name,
         room_number=updated_user.get('room_number'),
@@ -509,6 +547,161 @@ async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current
         created_at=updated_user['created_at'],
         pending_email_change=pending_email_change
     )
+
+# ============ LANDLORD EMAIL CHANGE (SELF-CONFIRMATION) ============
+
+@api_router.post("/profile/landlord-request-email-change")
+async def landlord_request_email_change(
+    request: LandlordEmailChangeRequest,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user)
+):
+    """Landlord requests email change - sends confirmation link to new email"""
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
+    
+    # Check if email is already in use
+    existing = await db.users.find_one({'email': request.new_email}, {'_id': 0})
+    if existing:
+        raise HTTPException(status_code=400, detail='Dit emailadres is al in gebruik')
+    
+    # Check for existing pending request
+    pending = await db.landlord_email_changes.find_one(
+        {'landlord_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    )
+    if pending:
+        raise HTTPException(status_code=400, detail='U heeft al een openstaand wijzigingsverzoek')
+    
+    # Create the request
+    request_id = str(uuid.uuid4())
+    confirmation_token = generate_approval_token()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    request_doc = {
+        'id': request_id,
+        'landlord_id': user['id'],
+        'landlord_name': user['name'],
+        'old_email': user['email'],
+        'new_email': request.new_email,
+        'confirmation_token': confirmation_token,
+        'status': 'pending',
+        'created_at': now,
+        'confirmed_at': None,
+        'expires_at': (datetime.now(timezone.utc) + timedelta(hours=24)).isoformat()
+    }
+    await db.landlord_email_changes.insert_one(request_doc)
+    
+    # Send confirmation link to NEW email
+    confirmation_link = f"{APP_URL}/bevestig-email/{confirmation_token}"
+    background_tasks.add_task(
+        send_email_notification,
+        request.new_email,  # Send to new email
+        "Bevestig uw nieuwe emailadres - KotMelding",
+        f"""
+        <h2>Bevestig uw nieuwe emailadres</h2>
+        <p>Beste {user['name']},</p>
+        <p>U heeft aangevraagd om uw emailadres te wijzigen naar dit adres.</p>
+        <p><strong>Huidig emailadres:</strong> {user['email']}</p>
+        <p><strong>Nieuw emailadres:</strong> {request.new_email}</p>
+        <p>Klik op de onderstaande link om de wijziging te bevestigen:</p>
+        <p><a href="{confirmation_link}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Emailadres bevestigen</a></p>
+        <p>Of kopieer deze link: {confirmation_link}</p>
+        <p><strong>Let op:</strong> Deze link is 24 uur geldig.</p>
+        <p>Als u deze aanvraag niet heeft gedaan, kunt u deze email negeren.</p>
+        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        """
+    )
+    
+    return {
+        'message': 'Bevestigingslink is verstuurd naar het nieuwe emailadres',
+        'request_id': request_id,
+        'new_email': request.new_email
+    }
+
+@api_router.get("/profile/landlord-email-change-requests")
+async def get_landlord_email_change_requests(user: dict = Depends(get_current_user)):
+    """Get landlord's email change request history"""
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
+    
+    requests = await db.landlord_email_changes.find(
+        {'landlord_id': user['id']},
+        {'_id': 0, 'confirmation_token': 0}
+    ).sort('created_at', -1).to_list(100)
+    return requests
+
+@api_router.delete("/profile/landlord-email-change-request")
+async def cancel_landlord_email_change_request(user: dict = Depends(get_current_user)):
+    """Cancel pending landlord email change request"""
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
+    
+    result = await db.landlord_email_changes.delete_one(
+        {'landlord_id': user['id'], 'status': 'pending'}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Geen openstaand verzoek gevonden')
+    return {'message': 'Verzoek geannuleerd'}
+
+@api_router.post("/confirm-email/{token}")
+async def confirm_landlord_email_change(token: str, background_tasks: BackgroundTasks):
+    """Confirm landlord email change via token (public endpoint)"""
+    request = await db.landlord_email_changes.find_one(
+        {'confirmation_token': token, 'status': 'pending'},
+        {'_id': 0}
+    )
+    if not request:
+        raise HTTPException(status_code=404, detail='Ongeldige of verlopen bevestigingslink')
+    
+    # Check expiry
+    if request.get('expires_at') and datetime.fromisoformat(request['expires_at'].replace('Z', '+00:00')) < datetime.now(timezone.utc):
+        await db.landlord_email_changes.update_one(
+            {'confirmation_token': token},
+            {'$set': {'status': 'expired'}}
+        )
+        raise HTTPException(status_code=400, detail='Bevestigingslink is verlopen')
+    
+    # Check if new email is still available
+    existing = await db.users.find_one({'email': request['new_email']}, {'_id': 0})
+    if existing:
+        raise HTTPException(status_code=400, detail='Het nieuwe emailadres is inmiddels in gebruik')
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    # Update landlord's email
+    await db.users.update_one(
+        {'id': request['landlord_id']},
+        {'$set': {'email': request['new_email']}}
+    )
+    
+    # Update request status
+    await db.landlord_email_changes.update_one(
+        {'confirmation_token': token},
+        {'$set': {'status': 'confirmed', 'confirmed_at': now}}
+    )
+    
+    # Send confirmation to old email
+    background_tasks.add_task(
+        send_email_notification,
+        request['old_email'],
+        "Emailadres gewijzigd - KotMelding",
+        f"""
+        <h2>Uw emailadres is gewijzigd</h2>
+        <p>Beste {request['landlord_name']},</p>
+        <p>Uw emailadres is succesvol gewijzigd.</p>
+        <p><strong>Oud emailadres:</strong> {request['old_email']}</p>
+        <p><strong>Nieuw emailadres:</strong> {request['new_email']}</p>
+        <p>Vanaf nu kunt u inloggen met uw nieuwe emailadres.</p>
+        <p>Als u deze wijziging niet heeft aangevraagd, neem dan onmiddellijk contact met ons op.</p>
+        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        """
+    )
+    
+    return {
+        'message': 'Emailadres succesvol gewijzigd',
+        'new_email': request['new_email']
+    }
 
 @api_router.post("/profile/request-email-change")
 async def request_email_change(
@@ -755,12 +948,15 @@ async def create_property(prop: PropertyCreate, user: dict = Depends(get_current
     while await db.properties.find_one({'join_code': join_code}):
         join_code = generate_join_code()
     
+    floor_count = max(0, min(prop.floor_count, 50))  # Limit to 0-50 floors
+    
     property_doc = {
         'id': property_id,
         'name': prop.name,
         'address': prop.address,
         'landlord_id': user['id'],
         'join_code': join_code,
+        'floor_count': floor_count,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     await db.properties.insert_one(property_doc)
@@ -772,6 +968,8 @@ async def create_property(prop: PropertyCreate, user: dict = Depends(get_current
         landlord_id=user['id'],
         join_code=join_code,
         join_link=f"{APP_URL}/join/{join_code}",
+        floor_count=floor_count,
+        floors=generate_floors(floor_count),
         tenant_count=0,
         created_at=property_doc['created_at']
     )
@@ -786,6 +984,7 @@ async def get_properties(user: dict = Depends(get_current_user)):
     result = []
     for prop in properties:
         tenant_count = await db.users.count_documents({'property_id': prop['id']})
+        floor_count = prop.get('floor_count', 5)
         result.append(PropertyResponse(
             id=prop['id'],
             name=prop['name'],
@@ -793,6 +992,8 @@ async def get_properties(user: dict = Depends(get_current_user)):
             landlord_id=prop['landlord_id'],
             join_code=prop['join_code'],
             join_link=f"{APP_URL}/join/{prop['join_code']}",
+            floor_count=floor_count,
+            floors=generate_floors(floor_count),
             tenant_count=tenant_count,
             created_at=prop['created_at']
         ))
@@ -809,6 +1010,7 @@ async def get_property(property_id: str, user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail='Pand niet gevonden')
     
     tenant_count = await db.users.count_documents({'property_id': property_id})
+    floor_count = prop.get('floor_count', 5)
     
     return PropertyResponse(
         id=prop['id'],
@@ -817,6 +1019,8 @@ async def get_property(property_id: str, user: dict = Depends(get_current_user))
         landlord_id=prop['landlord_id'],
         join_code=prop['join_code'],
         join_link=f"{APP_URL}/join/{prop['join_code']}",
+        floor_count=floor_count,
+        floors=generate_floors(floor_count),
         tenant_count=tenant_count,
         created_at=prop['created_at']
     )
@@ -835,12 +1039,15 @@ async def update_property(property_id: str, update: PropertyUpdate, user: dict =
         update_data['name'] = update.name
     if update.address:
         update_data['address'] = update.address
+    if update.floor_count is not None:
+        update_data['floor_count'] = max(0, min(update.floor_count, 50))
     
     if update_data:
         await db.properties.update_one({'id': property_id}, {'$set': update_data})
     
     updated = await db.properties.find_one({'id': property_id}, {'_id': 0})
     tenant_count = await db.users.count_documents({'property_id': property_id})
+    floor_count = updated.get('floor_count', 5)
     
     return PropertyResponse(
         id=updated['id'],
@@ -849,6 +1056,8 @@ async def update_property(property_id: str, update: PropertyUpdate, user: dict =
         landlord_id=updated['landlord_id'],
         join_code=updated['join_code'],
         join_link=f"{APP_URL}/join/{updated['join_code']}",
+        floor_count=floor_count,
+        floors=generate_floors(floor_count),
         tenant_count=tenant_count,
         created_at=updated['created_at']
     )
@@ -869,6 +1078,7 @@ async def regenerate_join_code(property_id: str, user: dict = Depends(get_curren
     await db.properties.update_one({'id': property_id}, {'$set': {'join_code': new_code}})
     
     tenant_count = await db.users.count_documents({'property_id': property_id})
+    floor_count = prop.get('floor_count', 5)
     
     return PropertyResponse(
         id=prop['id'],
@@ -877,6 +1087,8 @@ async def regenerate_join_code(property_id: str, user: dict = Depends(get_curren
         landlord_id=prop['landlord_id'],
         join_code=new_code,
         join_link=f"{APP_URL}/join/{new_code}",
+        floor_count=floor_count,
+        floors=generate_floors(floor_count),
         tenant_count=tenant_count,
         created_at=prop['created_at']
     )
@@ -959,15 +1171,19 @@ async def join_property(request: JoinPropertyRequest, user: dict = Depends(get_c
 
 @api_router.get("/properties/by-code/{join_code}")
 async def get_property_by_code(join_code: str):
-    """Public endpoint to verify join code and get property name"""
+    """Public endpoint to verify join code and get property name and floors"""
     prop = await db.properties.find_one({'join_code': join_code.upper()}, {'_id': 0})
     if not prop:
         raise HTTPException(status_code=404, detail='Ongeldige join code')
     
+    floor_count = prop.get('floor_count', 5)
+    
     return {
         'property_id': prop['id'],
         'property_name': prop['name'],
-        'address': prop['address']
+        'address': prop['address'],
+        'floor_count': floor_count,
+        'floors': generate_floors(floor_count)
     }
 
 @api_router.post("/properties/leave")
@@ -1333,7 +1549,7 @@ async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends
 # Health check
 @api_router.get("/")
 async def root():
-    return {"message": "KotMelding API is running", "version": "1.2.0"}
+    return {"message": "KotMelding API is running", "version": "1.3.0"}
 
 # Include router
 app.include_router(api_router)
