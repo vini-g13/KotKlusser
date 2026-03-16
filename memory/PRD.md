@@ -18,6 +18,7 @@ Build a modern, responsive web application for a student housing issue reporting
 - Dark purple-blue SaaS theme
 
 ## What's Been Implemented (Jan 2026)
+### Phase 1 - Core MVP
 - [x] JWT Authentication (student & landlord roles)
 - [x] Multi-step report wizard (4 steps)
 - [x] Ticket CRUD with unique numbers
@@ -30,6 +31,20 @@ Build a modern, responsive web application for a student housing issue reporting
 - [x] Email notification system (Resend - needs API key)
 - [x] Automatic reminder system
 - [x] Responsive dark theme UI
+
+### Phase 2 - Property Management
+- [x] Property CRUD for landlords
+- [x] Property onboarding flow after landlord registration
+- [x] Sidebar with properties list + tenant count
+- [x] Property detail page with tenants section (name, room, floor)
+- [x] Join code system (short code + link)
+- [x] Regenerate join code functionality
+- [x] Student can join at registration with code
+- [x] Student can join via dashboard with code
+- [x] Landlord can remove tenants from property
+- [x] Tickets linked to properties
+- [x] Filter dashboard by property
+- [x] Stats filter by selected property
 
 ## Tech Stack
 - Frontend: React + Tailwind CSS + Shadcn UI + Framer Motion
