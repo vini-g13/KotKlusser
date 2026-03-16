@@ -1,15 +1,17 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { 
-  Search, LogOut, User, Clock, Menu, X,
+  Search, LogOut, User, Clock, Menu, X, Plus,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, 
-  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Bell, Home
+  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Bell, Home, Building2, Users, MapPin
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -33,8 +35,12 @@ const statusLabels = {
 };
 
 const LandlordDashboard = () => {
-  const { user, logout, authAxios } = useAuth();
+  const { user, logout, authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  
+  const [properties, setProperties] = useState([]);
+  const [selectedProperty, setSelectedProperty] = useState(searchParams.get('property') || 'all');
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -43,10 +49,30 @@ const LandlordDashboard = () => {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [urgencyFilter, setUrgencyFilter] = useState("all");
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  
+  // New property dialog
+  const [showNewProperty, setShowNewProperty] = useState(false);
+  const [newPropertyData, setNewPropertyData] = useState({ name: "", address: "" });
+  const [creatingProperty, setCreatingProperty] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [statusFilter, categoryFilter, urgencyFilter]);
+    fetchProperties();
+  }, []);
+
+  useEffect(() => {
+    if (properties.length > 0 || selectedProperty === 'all') {
+      fetchData();
+    }
+  }, [selectedProperty, statusFilter, categoryFilter, urgencyFilter, properties]);
+
+  const fetchProperties = async () => {
+    try {
+      const response = await authAxios.get("/properties");
+      setProperties(response.data);
+    } catch (error) {
+      console.error("Failed to fetch properties", error);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -54,10 +80,11 @@ const LandlordDashboard = () => {
       if (statusFilter !== 'all') params.append('status', statusFilter);
       if (categoryFilter !== 'all') params.append('category', categoryFilter);
       if (urgencyFilter !== 'all') params.append('urgency', urgencyFilter);
+      if (selectedProperty !== 'all') params.append('property_id', selectedProperty);
       
       const [ticketsRes, statsRes] = await Promise.all([
         authAxios.get(`/tickets?${params.toString()}`),
-        authAxios.get('/stats/dashboard')
+        authAxios.get(`/stats/dashboard${selectedProperty !== 'all' ? `?property_id=${selectedProperty}` : ''}`)
       ]);
       setTickets(ticketsRes.data);
       setStats(statsRes.data);
@@ -83,11 +110,36 @@ const LandlordDashboard = () => {
     }
   };
 
+  const createProperty = async () => {
+    if (!newPropertyData.name.trim() || !newPropertyData.address.trim()) {
+      toast.error("Vul alle velden in");
+      return;
+    }
+    
+    setCreatingProperty(true);
+    try {
+      const response = await authAxios.post("/properties", newPropertyData);
+      setProperties([...properties, response.data]);
+      setNewPropertyData({ name: "", address: "" });
+      setShowNewProperty(false);
+      await refreshUser();
+      toast.success("Pand aangemaakt!");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon pand niet aanmaken");
+    } finally {
+      setCreatingProperty(false);
+    }
+  };
+
   const filteredTickets = tickets.filter(ticket => 
     ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
     ticket.created_by_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const selectedPropertyName = selectedProperty === 'all' 
+    ? 'Alle panden' 
+    : properties.find(p => p.id === selectedProperty)?.name || 'Pand';
 
   return (
     <div className="min-h-screen bg-[#0B0A14] flex">
@@ -98,12 +150,106 @@ const LandlordDashboard = () => {
             Kot<span className="text-indigo-500">Melding</span>
           </span>
         </div>
-        <nav className="flex-1 px-4 py-6 space-y-2">
-          <Link to="/verhuurder" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-600/10 text-indigo-400">
+        
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+          {/* Dashboard link */}
+          <button
+            onClick={() => setSelectedProperty('all')}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+              selectedProperty === 'all' 
+                ? 'bg-indigo-600/10 text-indigo-400' 
+                : 'text-slate-400 hover:bg-white/5 hover:text-white'
+            }`}
+            data-testid="nav-all-properties"
+          >
             <Home className="w-5 h-5" />
-            Dashboard
-          </Link>
+            Alle panden
+          </button>
+
+          {/* Properties section */}
+          <div className="pt-4">
+            <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Panden
+            </p>
+            
+            {properties.map((prop) => (
+              <button
+                key={prop.id}
+                onClick={() => setSelectedProperty(prop.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                  selectedProperty === prop.id 
+                    ? 'bg-indigo-600/10 text-indigo-400' 
+                    : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                }`}
+                data-testid={`nav-property-${prop.id}`}
+              >
+                <Building2 className="w-5 h-5" />
+                <div className="flex-1 text-left min-w-0">
+                  <p className="truncate">{prop.name}</p>
+                  <p className="text-xs text-slate-500">{prop.tenant_count} huurders</p>
+                </div>
+              </button>
+            ))}
+
+            {/* Add property button */}
+            <Dialog open={showNewProperty} onOpenChange={setShowNewProperty}>
+              <DialogTrigger asChild>
+                <button
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors"
+                  data-testid="add-property-btn"
+                >
+                  <Plus className="w-5 h-5" />
+                  Pand toevoegen
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#161425] border-white/10">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Nieuw pand toevoegen</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Naam van het pand</Label>
+                    <Input
+                      value={newPropertyData.name}
+                      onChange={(e) => setNewPropertyData({ ...newPropertyData, name: e.target.value })}
+                      placeholder="Bijv. Studentenhuis De Brug"
+                      className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                      data-testid="new-property-name"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-300">Adres</Label>
+                    <Input
+                      value={newPropertyData.address}
+                      onChange={(e) => setNewPropertyData({ ...newPropertyData, address: e.target.value })}
+                      placeholder="Bijv. Naamsestraat 123, 3000 Leuven"
+                      className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                      data-testid="new-property-address"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowNewProperty(false)}
+                    className="border-white/10 text-white"
+                  >
+                    Annuleren
+                  </Button>
+                  <Button
+                    onClick={createProperty}
+                    disabled={creatingProperty}
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                    data-testid="confirm-create-property"
+                  >
+                    {creatingProperty ? "Aanmaken..." : "Aanmaken"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </div>
         </nav>
+
         <div className="p-4 border-t border-white/5">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium">
@@ -157,7 +303,7 @@ const LandlordDashboard = () => {
               animate={{ x: 0 }}
               exit={{ x: -300 }}
               transition={{ type: "spring", damping: 25 }}
-              className="lg:hidden fixed left-0 top-0 bottom-0 w-72 bg-[#12111F] z-50"
+              className="lg:hidden fixed left-0 top-0 bottom-0 w-72 bg-[#12111F] z-50 overflow-y-auto"
             >
               <div className="flex items-center justify-between h-16 px-6 border-b border-white/5">
                 <span className="text-xl font-bold text-white font-['Outfit']">
@@ -168,10 +314,40 @@ const LandlordDashboard = () => {
                 </button>
               </div>
               <nav className="px-4 py-6 space-y-2">
-                <Link to="/verhuurder" className="flex items-center gap-3 px-4 py-3 rounded-lg bg-indigo-600/10 text-indigo-400">
+                <button
+                  onClick={() => { setSelectedProperty('all'); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                    selectedProperty === 'all' 
+                      ? 'bg-indigo-600/10 text-indigo-400' 
+                      : 'text-slate-400 hover:bg-white/5'
+                  }`}
+                >
                   <Home className="w-5 h-5" />
-                  Dashboard
-                </Link>
+                  Alle panden
+                </button>
+
+                <div className="pt-4">
+                  <p className="px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                    Panden
+                  </p>
+                  {properties.map((prop) => (
+                    <button
+                      key={prop.id}
+                      onClick={() => { setSelectedProperty(prop.id); setSidebarOpen(false); }}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                        selectedProperty === prop.id 
+                          ? 'bg-indigo-600/10 text-indigo-400' 
+                          : 'text-slate-400 hover:bg-white/5'
+                      }`}
+                    >
+                      <Building2 className="w-5 h-5" />
+                      <div className="flex-1 text-left min-w-0">
+                        <p className="truncate">{prop.name}</p>
+                        <p className="text-xs text-slate-500">{prop.tenant_count} huurders</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </nav>
             </motion.aside>
           </>
@@ -186,18 +362,30 @@ const LandlordDashboard = () => {
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
               <div>
                 <h1 className="text-2xl sm:text-3xl font-bold text-white font-['Outfit']">
-                  Dashboard
+                  {selectedPropertyName}
                 </h1>
-                <p className="text-slate-400 mt-1">Overzicht van alle meldingen</p>
+                <p className="text-slate-400 mt-1">
+                  {selectedProperty === 'all' ? 'Overzicht van alle meldingen' : 'Meldingen voor dit pand'}
+                </p>
               </div>
-              <Button 
-                onClick={sendReminders}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                data-testid="send-reminders-btn"
-              >
-                <Bell className="w-4 h-4 mr-2" />
-                Verstuur herinneringen
-              </Button>
+              <div className="flex gap-2">
+                {selectedProperty !== 'all' && (
+                  <Link to={`/pand/${selectedProperty}`}>
+                    <Button variant="outline" className="border-white/10 text-white" data-testid="view-property-btn">
+                      <Users className="w-4 h-4 mr-2" />
+                      Huurders
+                    </Button>
+                  </Link>
+                )}
+                <Button 
+                  onClick={sendReminders}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                  data-testid="send-reminders-btn"
+                >
+                  <Bell className="w-4 h-4 mr-2" />
+                  Herinneringen
+                </Button>
+              </div>
             </div>
 
             {/* Stats cards */}
@@ -350,7 +538,7 @@ const LandlordDashboard = () => {
                             </span>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                               <span className="text-xs text-slate-500 font-mono">
                                 {ticket.ticket_number}
                               </span>
@@ -360,6 +548,11 @@ const LandlordDashboard = () => {
                               <Badge className={`priority-${ticket.urgency} text-xs`}>
                                 {ticket.urgency}
                               </Badge>
+                              {ticket.property_name && selectedProperty === 'all' && (
+                                <Badge className="bg-white/5 text-slate-400 border-white/10 text-xs">
+                                  {ticket.property_name}
+                                </Badge>
+                              )}
                             </div>
                             <h3 className="text-white font-medium truncate group-hover:text-indigo-400 transition-colors">
                               {ticket.title}

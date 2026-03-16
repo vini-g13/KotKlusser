@@ -4,9 +4,11 @@ import { useAuth } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
+import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { 
-  Plus, Search, LogOut, User, Clock, 
+  Plus, Search, LogOut, User, Clock, Building2, Key, DoorOpen, Layers,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, 
   CheckCircle, AlertCircle, Calendar, ArrowRight
 } from "lucide-react";
@@ -32,11 +34,17 @@ const statusLabels = {
 };
 
 const StudentDashboard = () => {
-  const { user, logout, authAxios } = useAuth();
+  const { user, logout, authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  
+  // Join property dialog
+  const [showJoinDialog, setShowJoinDialog] = useState(false);
+  const [joinData, setJoinData] = useState({ join_code: "", room_number: "", floor: "" });
+  const [joining, setJoining] = useState(false);
+  const [propertyPreview, setPropertyPreview] = useState(null);
 
   useEffect(() => {
     fetchTickets();
@@ -57,6 +65,40 @@ const StudentDashboard = () => {
     logout();
     navigate("/");
     toast.success("U bent uitgelogd");
+  };
+
+  const verifyJoinCode = async () => {
+    if (joinData.join_code.length < 6) {
+      setPropertyPreview(null);
+      return;
+    }
+    try {
+      const response = await authAxios.get(`/properties/by-code/${joinData.join_code}`);
+      setPropertyPreview(response.data);
+    } catch (error) {
+      setPropertyPreview(null);
+    }
+  };
+
+  const handleJoinProperty = async () => {
+    if (!joinData.join_code || !joinData.room_number || !joinData.floor) {
+      toast.error("Vul alle velden in");
+      return;
+    }
+    
+    setJoining(true);
+    try {
+      await authAxios.post("/properties/join", joinData);
+      await refreshUser();
+      setShowJoinDialog(false);
+      setJoinData({ join_code: "", room_number: "", floor: "" });
+      setPropertyPreview(null);
+      toast.success("Succesvol aangesloten bij pand!");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon niet aansluiten");
+    } finally {
+      setJoining(false);
+    }
   };
 
   const filteredTickets = tickets.filter(ticket => 
@@ -112,6 +154,128 @@ const StudentDashboard = () => {
             </h1>
             <p className="text-slate-400 mt-1">Beheer uw defectmeldingen</p>
           </motion.div>
+
+          {/* Property Info Card */}
+          {user?.property_id ? (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="bg-[#161425] border border-white/5 rounded-xl p-4 mb-6"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                  <Building2 className="w-6 h-6 text-indigo-400" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-white font-medium">{user.property_name}</p>
+                  <p className="text-sm text-slate-400">
+                    Kamer {user.room_number} • Verdieping {user.floor}
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.05 }}
+              className="bg-gradient-to-r from-indigo-600/20 to-purple-600/20 border border-indigo-500/30 rounded-xl p-4 mb-6"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-lg bg-indigo-500/20 flex items-center justify-center">
+                    <Key className="w-6 h-6 text-indigo-400" />
+                  </div>
+                  <div>
+                    <p className="text-white font-medium">Nog niet gekoppeld aan een pand</p>
+                    <p className="text-sm text-slate-400">
+                      Vraag uw verhuurder om een uitnodigingscode
+                    </p>
+                  </div>
+                </div>
+                <Dialog open={showJoinDialog} onOpenChange={setShowJoinDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-indigo-600 hover:bg-indigo-700 text-white" data-testid="join-property-btn">
+                      Aansluiten
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-[#161425] border-white/10">
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Aansluiten bij pand</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label className="text-slate-300">Uitnodigingscode</Label>
+                        <Input
+                          value={joinData.join_code}
+                          onChange={(e) => setJoinData({ ...joinData, join_code: e.target.value.toUpperCase() })}
+                          onBlur={verifyJoinCode}
+                          placeholder="Bijv. ABC123"
+                          maxLength={6}
+                          className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 uppercase"
+                          data-testid="join-code-input"
+                        />
+                        {propertyPreview && (
+                          <p className="text-sm text-emerald-400">
+                            ✓ Pand gevonden: {propertyPreview.property_name}
+                          </p>
+                        )}
+                      </div>
+                      
+                      {propertyPreview && (
+                        <>
+                          <div className="space-y-2">
+                            <Label className="text-slate-300">Kamernummer</Label>
+                            <div className="relative">
+                              <DoorOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                              <Input
+                                value={joinData.room_number}
+                                onChange={(e) => setJoinData({ ...joinData, room_number: e.target.value })}
+                                placeholder="Bijv. 101"
+                                className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                                data-testid="join-room-input"
+                              />
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-slate-300">Verdieping</Label>
+                            <div className="relative">
+                              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                              <Input
+                                value={joinData.floor}
+                                onChange={(e) => setJoinData({ ...joinData, floor: e.target.value })}
+                                placeholder="Bijv. 1"
+                                className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                                data-testid="join-floor-input"
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowJoinDialog(false)}
+                        className="border-white/10 text-white"
+                      >
+                        Annuleren
+                      </Button>
+                      <Button
+                        onClick={handleJoinProperty}
+                        disabled={joining || !propertyPreview}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                        data-testid="confirm-join-btn"
+                      >
+                        {joining ? "Aansluiten..." : "Aansluiten"}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </motion.div>
+          )}
 
           {/* Stats */}
           <motion.div

@@ -6,6 +6,8 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import asyncio
+import random
+import string
 from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
@@ -32,6 +34,9 @@ JWT_EXPIRATION_HOURS = 24
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
 SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 
+# App URL for join links
+APP_URL = os.environ.get('APP_URL', 'https://kot-quick.preview.emergentagent.com')
+
 # Create the main app
 app = FastAPI(title="KotMelding API")
 api_router = APIRouter(prefix="/api")
@@ -49,6 +54,9 @@ class UserCreate(BaseModel):
     name: str
     role: str = "student"  # student or landlord
     phone: Optional[str] = None
+    join_code: Optional[str] = None  # For students joining a property
+    room_number: Optional[str] = None
+    floor: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -60,14 +68,51 @@ class UserResponse(BaseModel):
     name: str
     role: str
     phone: Optional[str] = None
+    property_id: Optional[str] = None
+    property_name: Optional[str] = None
+    room_number: Optional[str] = None
+    floor: Optional[str] = None
+    has_property: bool = False
     created_at: str
+
+class PropertyCreate(BaseModel):
+    name: str
+    address: str
+
+class PropertyUpdate(BaseModel):
+    name: Optional[str] = None
+    address: Optional[str] = None
+
+class PropertyResponse(BaseModel):
+    id: str
+    name: str
+    address: str
+    landlord_id: str
+    join_code: str
+    join_link: str
+    tenant_count: int = 0
+    created_at: str
+
+class TenantResponse(BaseModel):
+    id: str
+    name: str
+    email: str
+    room_number: Optional[str] = None
+    floor: Optional[str] = None
+    ticket_count: int = 0
+    created_at: str
+
+class JoinPropertyRequest(BaseModel):
+    join_code: str
+    room_number: str
+    floor: str
 
 class TicketCreate(BaseModel):
     title: str
     description: str
-    category: str  # sanitair, elektriciteit, verwarming, internet, keuken, anders
-    location: str  # kamer, badkamer, keuken, gang, etc.
-    urgency: str = "normaal"  # laag, normaal, hoog, urgent
+    category: str
+    location: str
+    urgency: str = "normaal"
 
 class TicketUpdate(BaseModel):
     status: Optional[str] = None
@@ -88,6 +133,8 @@ class TicketResponse(BaseModel):
     status: str
     created_by: str
     created_by_name: str
+    property_id: Optional[str] = None
+    property_name: Optional[str] = None
     assigned_to: Optional[str] = None
     photos: List[str] = []
     estimated_repair_date: Optional[str] = None
@@ -121,6 +168,10 @@ def create_token(user_id: str, role: str) -> str:
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
+def generate_join_code() -> str:
+    """Generate a 6-character alphanumeric join code"""
+    return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
         payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
@@ -137,7 +188,6 @@ def generate_ticket_number() -> str:
     return f"KM-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:6].upper()}"
 
 def estimate_repair_date(category: str, urgency: str) -> str:
-    """Heuristic estimation based on category and urgency"""
     base_days = {
         'sanitair': 3,
         'elektriciteit': 2,
@@ -157,7 +207,6 @@ def estimate_repair_date(category: str, urgency: str) -> str:
     return estimated_date.isoformat()
 
 async def send_email_notification(to_email: str, subject: str, html_content: str):
-    """Send email using Resend"""
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not configured, skipping email")
         return
@@ -192,9 +241,32 @@ async def register(user: UserCreate):
         'name': user.name,
         'role': user.role,
         'phone': user.phone,
+        'property_id': None,
+        'room_number': None,
+        'floor': None,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
+    
+    # If student provides join code during registration
+    property_name = None
+    if user.role == 'student' and user.join_code:
+        prop = await db.properties.find_one({'join_code': user.join_code.upper()}, {'_id': 0})
+        if not prop:
+            raise HTTPException(status_code=400, detail='Ongeldige join code')
+        if not user.room_number or not user.floor:
+            raise HTTPException(status_code=400, detail='Kamernummer en verdieping zijn verplicht')
+        user_doc['property_id'] = prop['id']
+        user_doc['room_number'] = user.room_number
+        user_doc['floor'] = user.floor
+        property_name = prop['name']
+    
     await db.users.insert_one(user_doc)
+    
+    # Check if landlord has properties
+    has_property = False
+    if user.role == 'landlord':
+        prop_count = await db.properties.count_documents({'landlord_id': user_id})
+        has_property = prop_count > 0
     
     token = create_token(user_id, user.role)
     return {
@@ -205,6 +277,11 @@ async def register(user: UserCreate):
             'name': user.name,
             'role': user.role,
             'phone': user.phone,
+            'property_id': user_doc.get('property_id'),
+            'property_name': property_name,
+            'room_number': user_doc.get('room_number'),
+            'floor': user_doc.get('floor'),
+            'has_property': has_property,
             'created_at': user_doc['created_at']
         }
     }
@@ -215,6 +292,19 @@ async def login(credentials: UserLogin):
     if not user or not verify_password(credentials.password, user['password']):
         raise HTTPException(status_code=401, detail='Ongeldige inloggegevens')
     
+    # Get property name if student has one
+    property_name = None
+    if user.get('property_id'):
+        prop = await db.properties.find_one({'id': user['property_id']}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+    
+    # Check if landlord has properties
+    has_property = False
+    if user['role'] == 'landlord':
+        prop_count = await db.properties.count_documents({'landlord_id': user['id']})
+        has_property = prop_count > 0
+    
     token = create_token(user['id'], user['role'])
     return {
         'token': token,
@@ -224,20 +314,285 @@ async def login(credentials: UserLogin):
             'name': user['name'],
             'role': user['role'],
             'phone': user.get('phone'),
+            'property_id': user.get('property_id'),
+            'property_name': property_name,
+            'room_number': user.get('room_number'),
+            'floor': user.get('floor'),
+            'has_property': has_property,
             'created_at': user['created_at']
         }
     }
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
+    property_name = None
+    if user.get('property_id'):
+        prop = await db.properties.find_one({'id': user['property_id']}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+    
+    has_property = False
+    if user['role'] == 'landlord':
+        prop_count = await db.properties.count_documents({'landlord_id': user['id']})
+        has_property = prop_count > 0
+    
     return UserResponse(
         id=user['id'],
         email=user['email'],
         name=user['name'],
         role=user['role'],
         phone=user.get('phone'),
+        property_id=user.get('property_id'),
+        property_name=property_name,
+        room_number=user.get('room_number'),
+        floor=user.get('floor'),
+        has_property=has_property,
         created_at=user['created_at']
     )
+
+# ============ PROPERTY ROUTES ============
+
+@api_router.post("/properties", response_model=PropertyResponse)
+async def create_property(prop: PropertyCreate, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden aanmaken')
+    
+    property_id = str(uuid.uuid4())
+    join_code = generate_join_code()
+    
+    # Ensure unique join code
+    while await db.properties.find_one({'join_code': join_code}):
+        join_code = generate_join_code()
+    
+    property_doc = {
+        'id': property_id,
+        'name': prop.name,
+        'address': prop.address,
+        'landlord_id': user['id'],
+        'join_code': join_code,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    }
+    await db.properties.insert_one(property_doc)
+    
+    return PropertyResponse(
+        id=property_id,
+        name=prop.name,
+        address=prop.address,
+        landlord_id=user['id'],
+        join_code=join_code,
+        join_link=f"{APP_URL}/join/{join_code}",
+        tenant_count=0,
+        created_at=property_doc['created_at']
+    )
+
+@api_router.get("/properties", response_model=List[PropertyResponse])
+async def get_properties(user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bekijken')
+    
+    properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+    
+    result = []
+    for prop in properties:
+        tenant_count = await db.users.count_documents({'property_id': prop['id']})
+        result.append(PropertyResponse(
+            id=prop['id'],
+            name=prop['name'],
+            address=prop['address'],
+            landlord_id=prop['landlord_id'],
+            join_code=prop['join_code'],
+            join_link=f"{APP_URL}/join/{prop['join_code']}",
+            tenant_count=tenant_count,
+            created_at=prop['created_at']
+        ))
+    
+    return result
+
+@api_router.get("/properties/{property_id}", response_model=PropertyResponse)
+async def get_property(property_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bekijken')
+    
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    tenant_count = await db.users.count_documents({'property_id': property_id})
+    
+    return PropertyResponse(
+        id=prop['id'],
+        name=prop['name'],
+        address=prop['address'],
+        landlord_id=prop['landlord_id'],
+        join_code=prop['join_code'],
+        join_link=f"{APP_URL}/join/{prop['join_code']}",
+        tenant_count=tenant_count,
+        created_at=prop['created_at']
+    )
+
+@api_router.patch("/properties/{property_id}", response_model=PropertyResponse)
+async def update_property(property_id: str, update: PropertyUpdate, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bijwerken')
+    
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    update_data = {}
+    if update.name:
+        update_data['name'] = update.name
+    if update.address:
+        update_data['address'] = update.address
+    
+    if update_data:
+        await db.properties.update_one({'id': property_id}, {'$set': update_data})
+    
+    updated = await db.properties.find_one({'id': property_id}, {'_id': 0})
+    tenant_count = await db.users.count_documents({'property_id': property_id})
+    
+    return PropertyResponse(
+        id=updated['id'],
+        name=updated['name'],
+        address=updated['address'],
+        landlord_id=updated['landlord_id'],
+        join_code=updated['join_code'],
+        join_link=f"{APP_URL}/join/{updated['join_code']}",
+        tenant_count=tenant_count,
+        created_at=updated['created_at']
+    )
+
+@api_router.post("/properties/{property_id}/regenerate-code", response_model=PropertyResponse)
+async def regenerate_join_code(property_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen codes regenereren')
+    
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    new_code = generate_join_code()
+    while await db.properties.find_one({'join_code': new_code}):
+        new_code = generate_join_code()
+    
+    await db.properties.update_one({'id': property_id}, {'$set': {'join_code': new_code}})
+    
+    tenant_count = await db.users.count_documents({'property_id': property_id})
+    
+    return PropertyResponse(
+        id=prop['id'],
+        name=prop['name'],
+        address=prop['address'],
+        landlord_id=prop['landlord_id'],
+        join_code=new_code,
+        join_link=f"{APP_URL}/join/{new_code}",
+        tenant_count=tenant_count,
+        created_at=prop['created_at']
+    )
+
+@api_router.get("/properties/{property_id}/tenants", response_model=List[TenantResponse])
+async def get_property_tenants(property_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen huurders bekijken')
+    
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    tenants = await db.users.find({'property_id': property_id}, {'_id': 0, 'password': 0}).to_list(1000)
+    
+    result = []
+    for tenant in tenants:
+        ticket_count = await db.tickets.count_documents({'created_by': tenant['id']})
+        result.append(TenantResponse(
+            id=tenant['id'],
+            name=tenant['name'],
+            email=tenant['email'],
+            room_number=tenant.get('room_number'),
+            floor=tenant.get('floor'),
+            ticket_count=ticket_count,
+            created_at=tenant['created_at']
+        ))
+    
+    return result
+
+@api_router.delete("/properties/{property_id}/tenants/{tenant_id}")
+async def remove_tenant(property_id: str, tenant_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen huurders verwijderen')
+    
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    tenant = await db.users.find_one({'id': tenant_id, 'property_id': property_id}, {'_id': 0})
+    if not tenant:
+        raise HTTPException(status_code=404, detail='Huurder niet gevonden in dit pand')
+    
+    # Remove tenant from property (don't delete user, just unlink)
+    await db.users.update_one(
+        {'id': tenant_id},
+        {'$set': {'property_id': None, 'room_number': None, 'floor': None}}
+    )
+    
+    return {'message': 'Huurder verwijderd uit pand'}
+
+# ============ JOIN PROPERTY (FOR STUDENTS) ============
+
+@api_router.post("/properties/join")
+async def join_property(request: JoinPropertyRequest, user: dict = Depends(get_current_user)):
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen zich aansluiten bij een pand')
+    
+    if user.get('property_id'):
+        raise HTTPException(status_code=400, detail='U bent al gekoppeld aan een pand. Neem contact op met uw verhuurder om van pand te wisselen.')
+    
+    prop = await db.properties.find_one({'join_code': request.join_code.upper()}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Ongeldige join code')
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {
+            'property_id': prop['id'],
+            'room_number': request.room_number,
+            'floor': request.floor
+        }}
+    )
+    
+    return {
+        'message': 'Succesvol aangesloten bij pand',
+        'property_id': prop['id'],
+        'property_name': prop['name']
+    }
+
+@api_router.get("/properties/by-code/{join_code}")
+async def get_property_by_code(join_code: str):
+    """Public endpoint to verify join code and get property name"""
+    prop = await db.properties.find_one({'join_code': join_code.upper()}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Ongeldige join code')
+    
+    return {
+        'property_id': prop['id'],
+        'property_name': prop['name'],
+        'address': prop['address']
+    }
+
+@api_router.post("/properties/leave")
+async def leave_property(user: dict = Depends(get_current_user)):
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een pand verlaten')
+    
+    if not user.get('property_id'):
+        raise HTTPException(status_code=400, detail='U bent niet gekoppeld aan een pand')
+    
+    await db.users.update_one(
+        {'id': user['id']},
+        {'$set': {'property_id': None, 'room_number': None, 'floor': None}}
+    )
+    
+    return {'message': 'Pand verlaten'}
 
 # ============ TICKET ROUTES ============
 
@@ -251,6 +606,14 @@ async def create_ticket(
     ticket_number = generate_ticket_number()
     now = datetime.now(timezone.utc).isoformat()
     
+    # Get property info if student has one
+    property_id = user.get('property_id')
+    property_name = None
+    if property_id:
+        prop = await db.properties.find_one({'id': property_id}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+    
     ticket_doc = {
         'id': ticket_id,
         'ticket_number': ticket_number,
@@ -262,6 +625,8 @@ async def create_ticket(
         'status': 'ontvangen',
         'created_by': user['id'],
         'created_by_name': user['name'],
+        'property_id': property_id,
+        'property_name': property_name,
         'assigned_to': None,
         'photos': [],
         'estimated_repair_date': estimate_repair_date(ticket.category, ticket.urgency),
@@ -273,7 +638,6 @@ async def create_ticket(
     }
     await db.tickets.insert_one(ticket_doc)
     
-    # Send confirmation email
     background_tasks.add_task(
         send_email_notification,
         user['email'],
@@ -298,12 +662,21 @@ async def get_tickets(
     status: Optional[str] = None,
     category: Optional[str] = None,
     urgency: Optional[str] = None,
+    property_id: Optional[str] = None,
     user: dict = Depends(get_current_user)
 ):
     query = {}
     
     if user['role'] == 'student':
         query['created_by'] = user['id']
+    elif user['role'] == 'landlord':
+        # Landlord can only see tickets from their properties
+        landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+        property_ids = [p['id'] for p in landlord_properties]
+        if property_id and property_id in property_ids:
+            query['property_id'] = property_id
+        else:
+            query['property_id'] = {'$in': property_ids}
     
     if status:
         query['status'] = status
@@ -324,6 +697,12 @@ async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
     if user['role'] == 'student' and ticket['created_by'] != user['id']:
         raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
     
+    if user['role'] == 'landlord':
+        landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+        property_ids = [p['id'] for p in landlord_properties]
+        if ticket.get('property_id') not in property_ids:
+            raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+    
     return TicketResponse(**ticket)
 
 @api_router.patch("/tickets/{ticket_id}", response_model=TicketResponse)
@@ -340,6 +719,12 @@ async def update_ticket(
     if not ticket:
         raise HTTPException(status_code=404, detail='Ticket niet gevonden')
     
+    # Verify landlord owns the property
+    landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+    property_ids = [p['id'] for p in landlord_properties]
+    if ticket.get('property_id') not in property_ids:
+        raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+    
     update_data = {'updated_at': datetime.now(timezone.utc).isoformat()}
     if update.status:
         update_data['status'] = update.status
@@ -350,7 +735,6 @@ async def update_ticket(
     
     await db.tickets.update_one({'id': ticket_id}, {'$set': update_data})
     
-    # Notify student
     student = await db.users.find_one({'id': ticket['created_by']}, {'_id': 0})
     if student and update.status:
         status_text = {
@@ -431,25 +815,26 @@ async def create_message(
     }
     await db.messages.insert_one(message_doc)
     
-    # Update last landlord response if landlord sends message
     if user['role'] == 'landlord':
         await db.tickets.update_one({'id': ticket_id}, {'$set': {'last_landlord_response': now, 'updated_at': now}})
     
-    # Notify the other party
     if user['role'] == 'student':
-        landlords = await db.users.find({'role': 'landlord'}, {'_id': 0}).to_list(100)
-        for landlord in landlords:
-            background_tasks.add_task(
-                send_email_notification,
-                landlord['email'],
-                f"Nieuw bericht - {ticket['ticket_number']}",
-                f"""
-                <h2>Nieuw bericht ontvangen</h2>
-                <p>Er is een nieuw bericht van {user['name']} voor ticket {ticket['ticket_number']}:</p>
-                <blockquote style="border-left: 3px solid #6366F1; padding-left: 10px; margin: 10px 0;">{message.content}</blockquote>
-                <p>Met vriendelijke groet,<br>KotMelding Team</p>
-                """
-            )
+        if ticket.get('property_id'):
+            prop = await db.properties.find_one({'id': ticket['property_id']}, {'_id': 0})
+            if prop:
+                landlord = await db.users.find_one({'id': prop['landlord_id']}, {'_id': 0})
+                if landlord:
+                    background_tasks.add_task(
+                        send_email_notification,
+                        landlord['email'],
+                        f"Nieuw bericht - {ticket['ticket_number']}",
+                        f"""
+                        <h2>Nieuw bericht ontvangen</h2>
+                        <p>Er is een nieuw bericht van {user['name']} voor ticket {ticket['ticket_number']}:</p>
+                        <blockquote style="border-left: 3px solid #6366F1; padding-left: 10px; margin: 10px 0;">{message.content}</blockquote>
+                        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+                        """
+                    )
     else:
         student = await db.users.find_one({'id': ticket['created_by']}, {'_id': 0})
         if student:
@@ -482,17 +867,26 @@ async def get_messages(ticket_id: str, user: dict = Depends(get_current_user)):
 # ============ STATS ROUTES ============
 
 @api_router.get("/stats/dashboard")
-async def get_dashboard_stats(user: dict = Depends(get_current_user)):
+async def get_dashboard_stats(property_id: Optional[str] = None, user: dict = Depends(get_current_user)):
     if user['role'] != 'landlord':
         raise HTTPException(status_code=403, detail='Alleen verhuurders hebben toegang tot statistieken')
     
-    total = await db.tickets.count_documents({})
-    open_tickets = await db.tickets.count_documents({'status': {'$ne': 'opgelost'}})
-    resolved = await db.tickets.count_documents({'status': 'opgelost'})
-    urgent = await db.tickets.count_documents({'urgency': {'$in': ['hoog', 'urgent']}})
+    # Get landlord's properties
+    landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+    property_ids = [p['id'] for p in landlord_properties]
     
-    # Category breakdown
+    # Build query
+    query = {'property_id': {'$in': property_ids}}
+    if property_id and property_id in property_ids:
+        query = {'property_id': property_id}
+    
+    total = await db.tickets.count_documents(query)
+    open_tickets = await db.tickets.count_documents({**query, 'status': {'$ne': 'opgelost'}})
+    resolved = await db.tickets.count_documents({**query, 'status': 'opgelost'})
+    urgent = await db.tickets.count_documents({**query, 'urgency': {'$in': ['hoog', 'urgent']}})
+    
     pipeline = [
+        {'$match': query},
         {'$group': {'_id': '$category', 'count': {'$sum': 1}}}
     ]
     categories = await db.tickets.aggregate(pipeline).to_list(100)
@@ -502,21 +896,24 @@ async def get_dashboard_stats(user: dict = Depends(get_current_user)):
         'open': open_tickets,
         'resolved': resolved,
         'urgent': urgent,
-        'by_category': {c['_id']: c['count'] for c in categories}
+        'by_category': {c['_id']: c['count'] for c in categories if c['_id']}
     }
 
 # ============ REMINDER SYSTEM ============
 
 @api_router.post("/admin/send-reminders")
 async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    """Send reminders for tickets without landlord response in 24h"""
     if user['role'] != 'landlord':
         raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen herinneringen versturen')
     
+    # Get landlord's properties
+    landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+    property_ids = [p['id'] for p in landlord_properties]
+    
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     
-    # Find tickets without recent landlord response
     stale_tickets = await db.tickets.find({
+        'property_id': {'$in': property_ids},
         'status': {'$nin': ['opgelost']},
         '$or': [
             {'last_landlord_response': None},
@@ -524,31 +921,28 @@ async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends
         ]
     }, {'_id': 0}).to_list(1000)
     
-    landlords = await db.users.find({'role': 'landlord'}, {'_id': 0}).to_list(100)
-    
-    for landlord in landlords:
-        if stale_tickets:
-            background_tasks.add_task(
-                send_email_notification,
-                landlord['email'],
-                f"Herinnering: {len(stale_tickets)} openstaande meldingen",
-                f"""
-                <h2>Openstaande meldingen</h2>
-                <p>Er zijn {len(stale_tickets)} meldingen die al meer dan 24 uur wachten op een reactie:</p>
-                <ul>
-                {''.join([f"<li>{t['ticket_number']}: {t['title']}</li>" for t in stale_tickets[:10]])}
-                </ul>
-                <p>Log in om deze meldingen te bekijken en op te volgen.</p>
-                <p>Met vriendelijke groet,<br>KotMelding Team</p>
-                """
-            )
+    if stale_tickets:
+        background_tasks.add_task(
+            send_email_notification,
+            user['email'],
+            f"Herinnering: {len(stale_tickets)} openstaande meldingen",
+            f"""
+            <h2>Openstaande meldingen</h2>
+            <p>Er zijn {len(stale_tickets)} meldingen die al meer dan 24 uur wachten op een reactie:</p>
+            <ul>
+            {''.join([f"<li>{t['ticket_number']}: {t['title']}</li>" for t in stale_tickets[:10]])}
+            </ul>
+            <p>Log in om deze meldingen te bekijken en op te volgen.</p>
+            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            """
+        )
     
     return {'message': f'{len(stale_tickets)} herinneringen verstuurd'}
 
 # Health check
 @api_router.get("/")
 async def root():
-    return {"message": "KotMelding API is running", "version": "1.0.0"}
+    return {"message": "KotMelding API is running", "version": "1.1.0"}
 
 # Include router
 app.include_router(api_router)

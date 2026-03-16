@@ -13,6 +13,9 @@ import StudentDashboard from "./pages/StudentDashboard";
 import LandlordDashboard from "./pages/LandlordDashboard";
 import NewReport from "./pages/NewReport";
 import TicketDetail from "./pages/TicketDetail";
+import PropertyOnboarding from "./pages/PropertyOnboarding";
+import PropertyDetail from "./pages/PropertyDetail";
+import JoinProperty from "./pages/JoinProperty";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -67,13 +70,28 @@ const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const refreshUser = async () => {
+    if (token) {
+      try {
+        const response = await axios.get(`${API}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUser(response.data);
+        return response.data;
+      } catch (e) {
+        console.error("Failed to refresh user", e);
+      }
+    }
+    return null;
+  };
+
   const authAxios = axios.create({
     baseURL: API,
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   });
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, authAxios }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser, authAxios }}>
       {children}
     </AuthContext.Provider>
   );
@@ -151,6 +169,9 @@ function AppRoutes() {
             <PageWrapper><RegisterPage /></PageWrapper>
           )
         } />
+        <Route path="/join/:code" element={
+          <PageWrapper><JoinProperty /></PageWrapper>
+        } />
         <Route path="/dashboard" element={
           <ProtectedRoute allowedRoles={['student']}>
             <PageWrapper><StudentDashboard /></PageWrapper>
@@ -158,7 +179,21 @@ function AppRoutes() {
         } />
         <Route path="/verhuurder" element={
           <ProtectedRoute allowedRoles={['landlord']}>
-            <PageWrapper><LandlordDashboard /></PageWrapper>
+            {user && !user.has_property ? (
+              <Navigate to="/onboarding/pand" replace />
+            ) : (
+              <PageWrapper><LandlordDashboard /></PageWrapper>
+            )}
+          </ProtectedRoute>
+        } />
+        <Route path="/onboarding/pand" element={
+          <ProtectedRoute allowedRoles={['landlord']}>
+            <PageWrapper><PropertyOnboarding /></PageWrapper>
+          </ProtectedRoute>
+        } />
+        <Route path="/pand/:id" element={
+          <ProtectedRoute allowedRoles={['landlord']}>
+            <PageWrapper><PropertyDetail /></PageWrapper>
           </ProtectedRoute>
         } />
         <Route path="/nieuw-melding" element={

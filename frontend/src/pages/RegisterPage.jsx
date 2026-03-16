@@ -1,28 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { useAuth } from "../App";
+import { useAuth, API } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key } from "lucide-react";
 import { motion } from "framer-motion";
+import axios from "axios";
 
 const RegisterPage = () => {
   const [searchParams] = useSearchParams();
   const defaultRole = searchParams.get('role') || 'student';
+  const joinCode = searchParams.get('join') || '';
   
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
     phone: "",
-    role: defaultRole
+    role: defaultRole,
+    join_code: joinCode,
+    room_number: "",
+    floor: ""
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [propertyInfo, setPropertyInfo] = useState(null);
   const { register } = useAuth();
   const navigate = useNavigate();
+
+  // Verify join code if provided
+  useEffect(() => {
+    if (joinCode) {
+      verifyJoinCode(joinCode);
+    }
+  }, [joinCode]);
+
+  const verifyJoinCode = async (code) => {
+    try {
+      const response = await axios.get(`${API}/properties/by-code/${code}`);
+      setPropertyInfo(response.data);
+    } catch (error) {
+      toast.error("Ongeldige uitnodigingscode");
+      setFormData(prev => ({ ...prev, join_code: "" }));
+    }
+  };
+
+  const handleJoinCodeBlur = () => {
+    if (formData.join_code && formData.join_code.length >= 6) {
+      verifyJoinCode(formData.join_code);
+    } else {
+      setPropertyInfo(null);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -30,18 +61,34 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate student with join code
+    if (formData.role === 'student' && formData.join_code) {
+      if (!formData.room_number || !formData.floor) {
+        toast.error("Vul uw kamernummer en verdieping in");
+        return;
+      }
+    }
+    
     setLoading(true);
     
     try {
       const user = await register(formData);
       toast.success(`Welkom, ${user.name}! Account succesvol aangemaakt.`);
-      navigate(user.role === 'landlord' ? '/verhuurder' : '/dashboard');
+      
+      if (user.role === 'landlord') {
+        navigate(user.has_property ? '/verhuurder' : '/onboarding/pand');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error) {
       toast.error(error.response?.data?.detail || "Registratie mislukt");
     } finally {
       setLoading(false);
     }
   };
+
+  const showJoinFields = formData.role === 'student' && formData.join_code && propertyInfo;
 
   return (
     <div className="min-h-screen bg-[#0B0A14] flex">
@@ -56,7 +103,7 @@ const RegisterPage = () => {
       </div>
 
       {/* Right side - Form */}
-      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24">
+      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24 py-8">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -85,7 +132,10 @@ const RegisterPage = () => {
           <div className="flex gap-2 mb-6">
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, role: 'student' })}
+              onClick={() => {
+                setFormData({ ...formData, role: 'student' });
+                setPropertyInfo(null);
+              }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
                 formData.role === 'student' 
                   ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400' 
@@ -98,7 +148,10 @@ const RegisterPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setFormData({ ...formData, role: 'landlord' })}
+              onClick={() => {
+                setFormData({ ...formData, role: 'landlord', join_code: '', room_number: '', floor: '' });
+                setPropertyInfo(null);
+              }}
               className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
                 formData.role === 'landlord' 
                   ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400' 
@@ -190,6 +243,76 @@ const RegisterPage = () => {
                 </button>
               </div>
             </div>
+
+            {/* Join code for students */}
+            {formData.role === 'student' && (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="join_code" className="text-slate-300">
+                    Uitnodigingscode (optioneel)
+                  </Label>
+                  <div className="relative">
+                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <Input
+                      id="join_code"
+                      name="join_code"
+                      type="text"
+                      value={formData.join_code}
+                      onChange={handleChange}
+                      onBlur={handleJoinCodeBlur}
+                      placeholder="Bijv. ABC123"
+                      className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 uppercase"
+                      maxLength={6}
+                      data-testid="register-join-code-input"
+                    />
+                  </div>
+                  {propertyInfo && (
+                    <p className="text-sm text-emerald-400">
+                      ✓ Pand gevonden: {propertyInfo.property_name}
+                    </p>
+                  )}
+                </div>
+
+                {showJoinFields && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="room_number" className="text-slate-300">Kamernummer</Label>
+                      <div className="relative">
+                        <DoorOpen className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <Input
+                          id="room_number"
+                          name="room_number"
+                          type="text"
+                          value={formData.room_number}
+                          onChange={handleChange}
+                          placeholder="101"
+                          required={!!formData.join_code}
+                          className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                          data-testid="register-room-input"
+                        />
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="floor" className="text-slate-300">Verdieping</Label>
+                      <div className="relative">
+                        <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                        <Input
+                          id="floor"
+                          name="floor"
+                          type="text"
+                          value={formData.floor}
+                          onChange={handleChange}
+                          placeholder="1"
+                          required={!!formData.join_code}
+                          className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                          data-testid="register-floor-input"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
 
             <Button 
               type="submit" 
