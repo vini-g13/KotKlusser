@@ -121,10 +121,14 @@ const StudentDashboard = () => {
               </span>
             </Link>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-slate-400">
+              <Link 
+                to="/profiel" 
+                className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group"
+                data-testid="profile-link"
+              >
                 <User className="w-4 h-4" />
-                <span className="hidden sm:inline">{user?.name}</span>
-              </div>
+                <span className="hidden sm:inline group-hover:text-indigo-400">{user?.name}</span>
+              </Link>
               <Button 
                 variant="ghost" 
                 size="icon" 

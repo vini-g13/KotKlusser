@@ -22,6 +22,7 @@ class KotMeldingAPITester:
         self.test_property_id = None
         self.test_join_code = None
         self.test_tenant_id = None
+        self.test_email_request_id = None
         self.tests_run = 0
         self.tests_passed = 0
         self.failed_tests = []
@@ -627,6 +628,175 @@ class KotMeldingAPITester:
             self.log_test("Photo Upload", False, f"Upload error: {str(e)}")
             return False
 
+    # ============ PROFILE MANAGEMENT TESTS ============
+    
+    def test_get_profile(self):
+        """Test getting user profile with split names"""
+        if not self.student_token:
+            self.log_test("Get Profile", False, "No student token")
+            return False
+        
+        status, response = self.make_request('GET', 'profile', token=self.student_token)
+        success = status == 200 and 'first_name' in response and 'last_name' in response and 'email' in response
+        
+        if success:
+            self.log_test("Get Profile", True, f"Profile retrieved: {response['first_name']} {response['last_name']}")
+        else:
+            self.log_test("Get Profile", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_update_profile_names(self):
+        """Test updating profile names"""
+        if not self.student_token:
+            self.log_test("Update Profile Names", False, "No student token")
+            return False
+        
+        test_data = {
+            "first_name": "John",
+            "last_name": "Doe Updated"
+        }
+        
+        status, response = self.make_request('PATCH', 'profile', test_data, self.student_token)
+        success = status == 200 and response.get('first_name') == 'John' and response.get('last_name') == 'Doe Updated'
+        
+        if success:
+            self.log_test("Update Profile Names", True, f"Names updated: {response['first_name']} {response['last_name']}")
+        else:
+            self.log_test("Update Profile Names", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_update_profile_phone(self):
+        """Test updating profile phone number"""
+        if not self.student_token:
+            self.log_test("Update Profile Phone", False, "No student token")
+            return False
+        
+        test_data = {
+            "phone": "+32 987 654 321"
+        }
+        
+        status, response = self.make_request('PATCH', 'profile', test_data, self.student_token)
+        success = status == 200 and response.get('phone') == '+32 987 654 321'
+        
+        if success:
+            self.log_test("Update Profile Phone", True, f"Phone updated: {response['phone']}")
+        else:
+            self.log_test("Update Profile Phone", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_request_email_change(self):
+        """Test requesting email address change"""
+        if not self.student_token:
+            self.log_test("Request Email Change", False, "No student token")
+            return False
+        
+        test_data = {
+            "new_email": f"newemail_{datetime.now().strftime('%H%M%S')}@test.com"
+        }
+        
+        status, response = self.make_request('POST', 'profile/request-email-change', test_data, self.student_token)
+        success = status == 200 and 'request_id' in response and 'new_email' in response
+        
+        if success:
+            self.test_email_request_id = response['request_id']
+            self.log_test("Request Email Change", True, f"Email change requested: {response['new_email']}")
+        else:
+            self.log_test("Request Email Change", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_get_email_change_requests(self):
+        """Test getting user's email change request history"""
+        if not self.student_token:
+            self.log_test("Get Email Change Requests", False, "No student token")
+            return False
+        
+        status, response = self.make_request('GET', 'profile/email-change-requests', token=self.student_token)
+        success = status == 200 and isinstance(response, list)
+        
+        if success:
+            self.log_test("Get Email Change Requests", True, f"Found {len(response)} email change requests")
+        else:
+            self.log_test("Get Email Change Requests", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_cancel_email_change_request(self):
+        """Test canceling pending email change request"""
+        if not self.student_token:
+            self.log_test("Cancel Email Change Request", False, "No student token")
+            return False
+        
+        status, response = self.make_request('DELETE', 'profile/email-change-request', token=self.student_token)
+        success = status == 200 and 'message' in response
+        
+        if success:
+            self.log_test("Cancel Email Change Request", True, response['message'])
+        else:
+            self.log_test("Cancel Email Change Request", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_get_pending_email_requests_landlord(self):
+        """Test getting pending email change requests as landlord"""
+        if not self.landlord_token:
+            self.log_test("Get Pending Email Requests (Landlord)", False, "No landlord token")
+            return False
+        
+        status, response = self.make_request('GET', 'email-change-requests/pending', token=self.landlord_token)
+        success = status == 200 and isinstance(response, list)
+        
+        if success:
+            self.log_test("Get Pending Email Requests (Landlord)", True, f"Found {len(response)} pending requests")
+        else:
+            self.log_test("Get Pending Email Requests (Landlord)", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_profile_with_pending_email_change(self):
+        """Test profile response includes pending email change info"""
+        if not self.student_token:
+            self.log_test("Profile with Pending Email Change", False, "No student token")
+            return False
+        
+        # First make a new email change request
+        test_data = {"new_email": f"pending_{datetime.now().strftime('%H%M%S')}@test.com"}
+        self.make_request('POST', 'profile/request-email-change', test_data, self.student_token)
+        
+        # Now get profile and check for pending request
+        status, response = self.make_request('GET', 'profile', token=self.student_token)
+        success = status == 200 and response.get('pending_email_change') is not None
+        
+        if success:
+            pending = response['pending_email_change']
+            self.log_test("Profile with Pending Email Change", True, f"Pending email: {pending['new_email']}")
+        else:
+            self.log_test("Profile with Pending Email Change", False, f"Status {status}", response)
+        
+        return success
+    
+    def test_duplicate_email_change_request(self):
+        """Test preventing duplicate email change requests"""
+        if not self.student_token:
+            self.log_test("Duplicate Email Change Request", False, "No student token")
+            return False
+        
+        test_data = {"new_email": f"duplicate_{datetime.now().strftime('%H%M%S')}@test.com"}
+        
+        # This should fail since there's already a pending request
+        status, response = self.make_request('POST', 'profile/request-email-change', test_data, self.student_token)
+        success = status == 400 and 'openstaand wijzigingsverzoek' in response.get('detail', '')
+        
+        if success:
+            self.log_test("Duplicate Email Change Request", True, "Correctly prevented duplicate request")
+        else:
+            self.log_test("Duplicate Email Change Request", False, f"Status {status}", response)
+        
+        return success
+
     # ============ ERROR HANDLING TESTS ============
     
     def test_unauthorized_access(self):
@@ -706,6 +876,18 @@ class KotMeldingAPITester:
         self.test_get_property_tenants()
         self.test_property_access_control()
         self.test_invalid_join_code()
+        
+        # Profile management tests
+        print("\n👤 Profile Management Tests")
+        self.test_get_profile()
+        self.test_update_profile_names()
+        self.test_update_profile_phone()
+        self.test_request_email_change()
+        self.test_get_email_change_requests()
+        self.test_profile_with_pending_email_change()
+        self.test_duplicate_email_change_request()
+        self.test_get_pending_email_requests_landlord()
+        self.test_cancel_email_change_request()
         
         # Ticket management tests
         print("\n🎫 Ticket Management Tests")

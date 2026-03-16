@@ -107,6 +107,45 @@ class JoinPropertyRequest(BaseModel):
     room_number: str
     floor: str
 
+# Profile Management Models
+class ProfileUpdate(BaseModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    phone: Optional[str] = None
+
+class EmailChangeRequest(BaseModel):
+    new_email: EmailStr
+
+class EmailChangeApproval(BaseModel):
+    approved: bool
+    reason: Optional[str] = None
+
+class ProfileResponse(BaseModel):
+    id: str
+    email: str
+    first_name: str
+    last_name: str
+    phone: Optional[str] = None
+    role: str
+    property_id: Optional[str] = None
+    property_name: Optional[str] = None
+    room_number: Optional[str] = None
+    floor: Optional[str] = None
+    created_at: str
+    pending_email_change: Optional[dict] = None
+
+class EmailChangeRequestResponse(BaseModel):
+    id: str
+    student_id: str
+    student_name: str
+    student_email: str
+    new_email: str
+    status: str  # pending, approved, rejected
+    created_at: str
+    processed_at: Optional[str] = None
+    processed_by: Optional[str] = None
+    rejection_reason: Optional[str] = None
+
 class TicketCreate(BaseModel):
     title: str
     description: str
@@ -171,6 +210,23 @@ def create_token(user_id: str, role: str) -> str:
 def generate_join_code() -> str:
     """Generate a 6-character alphanumeric join code"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+
+def generate_approval_token() -> str:
+    """Generate a secure token for email change approval"""
+    return ''.join(random.choices(string.ascii_letters + string.digits, k=64))
+
+def split_name(full_name: str) -> tuple:
+    """Split a full name into first and last name"""
+    parts = full_name.strip().split(' ', 1)
+    first_name = parts[0]
+    last_name = parts[1] if len(parts) > 1 else ''
+    return first_name, last_name
+
+def combine_name(first_name: str, last_name: str) -> str:
+    """Combine first and last name into full name"""
+    if last_name:
+        return f"{first_name} {last_name}"
+    return first_name
 
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     try:
@@ -350,7 +406,342 @@ async def get_me(user: dict = Depends(get_current_user)):
         created_at=user['created_at']
     )
 
-# ============ PROPERTY ROUTES ============
+# ============ PROFILE MANAGEMENT ROUTES ============
+
+@api_router.get("/profile", response_model=ProfileResponse)
+async def get_profile(user: dict = Depends(get_current_user)):
+    """Get current user's profile with split first/last name"""
+    property_name = None
+    if user.get('property_id'):
+        prop = await db.properties.find_one({'id': user['property_id']}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+    
+    # Split name into first and last
+    first_name, last_name = split_name(user.get('name', ''))
+    
+    # Check for pending email change request
+    pending_request = await db.email_change_requests.find_one(
+        {'student_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    )
+    
+    pending_email_change = None
+    if pending_request:
+        pending_email_change = {
+            'new_email': pending_request['new_email'],
+            'created_at': pending_request['created_at'],
+            'status': pending_request['status']
+        }
+    
+    return ProfileResponse(
+        id=user['id'],
+        email=user['email'],
+        first_name=first_name,
+        last_name=last_name,
+        phone=user.get('phone'),
+        role=user['role'],
+        property_id=user.get('property_id'),
+        property_name=property_name,
+        room_number=user.get('room_number'),
+        floor=user.get('floor'),
+        created_at=user['created_at'],
+        pending_email_change=pending_email_change
+    )
+
+@api_router.patch("/profile", response_model=ProfileResponse)
+async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current_user)):
+    """Update user profile (name, phone). Email cannot be changed directly."""
+    update_data = {}
+    
+    # Get current first/last name
+    current_first, current_last = split_name(user.get('name', ''))
+    
+    # Update name components if provided
+    new_first = update.first_name if update.first_name is not None else current_first
+    new_last = update.last_name if update.last_name is not None else current_last
+    
+    if update.first_name is not None or update.last_name is not None:
+        update_data['name'] = combine_name(new_first, new_last)
+    
+    if update.phone is not None:
+        update_data['phone'] = update.phone
+    
+    if update_data:
+        await db.users.update_one({'id': user['id']}, {'$set': update_data})
+    
+    # Get updated user
+    updated_user = await db.users.find_one({'id': user['id']}, {'_id': 0})
+    
+    property_name = None
+    if updated_user.get('property_id'):
+        prop = await db.properties.find_one({'id': updated_user['property_id']}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+    
+    first_name, last_name = split_name(updated_user.get('name', ''))
+    
+    # Check for pending email change
+    pending_request = await db.email_change_requests.find_one(
+        {'student_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    )
+    
+    pending_email_change = None
+    if pending_request:
+        pending_email_change = {
+            'new_email': pending_request['new_email'],
+            'created_at': pending_request['created_at'],
+            'status': pending_request['status']
+        }
+    
+    return ProfileResponse(
+        id=updated_user['id'],
+        email=updated_user['email'],
+        first_name=first_name,
+        last_name=last_name,
+        phone=updated_user.get('phone'),
+        role=updated_user['role'],
+        property_id=updated_user.get('property_id'),
+        property_name=property_name,
+        room_number=updated_user.get('room_number'),
+        floor=updated_user.get('floor'),
+        created_at=updated_user['created_at'],
+        pending_email_change=pending_email_change
+    )
+
+@api_router.post("/profile/request-email-change")
+async def request_email_change(
+    request: EmailChangeRequest,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user)
+):
+    """Request an email address change. Requires landlord approval."""
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een emailwijziging aanvragen')
+    
+    # Check if email is already in use
+    existing = await db.users.find_one({'email': request.new_email}, {'_id': 0})
+    if existing:
+        raise HTTPException(status_code=400, detail='Dit emailadres is al in gebruik')
+    
+    # Check for existing pending request
+    pending = await db.email_change_requests.find_one(
+        {'student_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    )
+    if pending:
+        raise HTTPException(status_code=400, detail='U heeft al een openstaand wijzigingsverzoek')
+    
+    # Check if student is linked to a property
+    if not user.get('property_id'):
+        raise HTTPException(status_code=400, detail='U moet eerst gekoppeld zijn aan een pand')
+    
+    # Get the property and landlord
+    prop = await db.properties.find_one({'id': user['property_id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+    
+    landlord = await db.users.find_one({'id': prop['landlord_id']}, {'_id': 0})
+    if not landlord:
+        raise HTTPException(status_code=404, detail='Verhuurder niet gevonden')
+    
+    # Create the request
+    request_id = str(uuid.uuid4())
+    approval_token = generate_approval_token()
+    now = datetime.now(timezone.utc).isoformat()
+    
+    request_doc = {
+        'id': request_id,
+        'student_id': user['id'],
+        'student_name': user['name'],
+        'student_email': user['email'],
+        'new_email': request.new_email,
+        'property_id': user['property_id'],
+        'landlord_id': prop['landlord_id'],
+        'approval_token': approval_token,
+        'status': 'pending',
+        'created_at': now,
+        'processed_at': None,
+        'processed_by': None,
+        'rejection_reason': None
+    }
+    await db.email_change_requests.insert_one(request_doc)
+    
+    # Send notification to landlord
+    approval_link = f"{APP_URL}/email-wijziging/{approval_token}"
+    background_tasks.add_task(
+        send_email_notification,
+        landlord['email'],
+        f"Emailwijziging aanvraag - {user['name']}",
+        f"""
+        <h2>Emailwijziging aanvraag</h2>
+        <p>Beste {landlord['name']},</p>
+        <p>De student <strong>{user['name']}</strong> heeft een aanvraag ingediend om zijn/haar emailadres te wijzigen.</p>
+        <p><strong>Huidige email:</strong> {user['email']}</p>
+        <p><strong>Nieuwe email:</strong> {request.new_email}</p>
+        <p><strong>Pand:</strong> {prop['name']}</p>
+        <p>Klik op de onderstaande link om de aanvraag te bekijken en goed te keuren of af te wijzen:</p>
+        <p><a href="{approval_link}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Aanvraag bekijken</a></p>
+        <p>Of kopieer deze link: {approval_link}</p>
+        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        """
+    )
+    
+    return {
+        'message': 'Wijzigingsverzoek is ingediend',
+        'request_id': request_id,
+        'new_email': request.new_email
+    }
+
+@api_router.get("/profile/email-change-requests")
+async def get_my_email_change_requests(user: dict = Depends(get_current_user)):
+    """Get user's email change request history"""
+    requests = await db.email_change_requests.find(
+        {'student_id': user['id']},
+        {'_id': 0, 'approval_token': 0}
+    ).sort('created_at', -1).to_list(100)
+    return requests
+
+@api_router.delete("/profile/email-change-request")
+async def cancel_email_change_request(user: dict = Depends(get_current_user)):
+    """Cancel pending email change request"""
+    result = await db.email_change_requests.delete_one(
+        {'student_id': user['id'], 'status': 'pending'}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail='Geen openstaand verzoek gevonden')
+    return {'message': 'Verzoek geannuleerd'}
+
+# ============ EMAIL CHANGE APPROVAL ROUTES (FOR LANDLORDS) ============
+
+@api_router.get("/email-change-requests/pending")
+async def get_pending_email_change_requests(user: dict = Depends(get_current_user)):
+    """Get all pending email change requests for landlord's properties"""
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen dit bekijken')
+    
+    requests = await db.email_change_requests.find(
+        {'landlord_id': user['id'], 'status': 'pending'},
+        {'_id': 0}
+    ).sort('created_at', -1).to_list(100)
+    
+    # Enrich with property info
+    for req in requests:
+        prop = await db.properties.find_one({'id': req.get('property_id')}, {'_id': 0})
+        if prop:
+            req['property_name'] = prop['name']
+    
+    return requests
+
+@api_router.get("/email-change-requests/by-token/{token}")
+async def get_email_change_by_token(token: str):
+    """Get email change request by approval token (public endpoint for approval page)"""
+    request = await db.email_change_requests.find_one(
+        {'approval_token': token},
+        {'_id': 0, 'approval_token': 0}
+    )
+    if not request:
+        raise HTTPException(status_code=404, detail='Verzoek niet gevonden of link is verlopen')
+    
+    # Get property info
+    prop = await db.properties.find_one({'id': request.get('property_id')}, {'_id': 0})
+    if prop:
+        request['property_name'] = prop['name']
+    
+    return request
+
+@api_router.post("/email-change-requests/{token}/process")
+async def process_email_change_request(
+    token: str,
+    approval: EmailChangeApproval,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(get_current_user)
+):
+    """Approve or reject an email change request"""
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen dit verwerken')
+    
+    request = await db.email_change_requests.find_one(
+        {'approval_token': token, 'status': 'pending'},
+        {'_id': 0}
+    )
+    if not request:
+        raise HTTPException(status_code=404, detail='Verzoek niet gevonden of al verwerkt')
+    
+    # Verify landlord owns the property
+    if request['landlord_id'] != user['id']:
+        raise HTTPException(status_code=403, detail='U bent niet gemachtigd voor dit verzoek')
+    
+    now = datetime.now(timezone.utc).isoformat()
+    
+    if approval.approved:
+        # Check if new email is still available
+        existing = await db.users.find_one({'email': request['new_email']}, {'_id': 0})
+        if existing:
+            raise HTTPException(status_code=400, detail='Het nieuwe emailadres is inmiddels in gebruik')
+        
+        # Update student's email
+        await db.users.update_one(
+            {'id': request['student_id']},
+            {'$set': {'email': request['new_email']}}
+        )
+        
+        # Update request status
+        await db.email_change_requests.update_one(
+            {'approval_token': token},
+            {'$set': {
+                'status': 'approved',
+                'processed_at': now,
+                'processed_by': user['id']
+            }}
+        )
+        
+        # Notify student
+        background_tasks.add_task(
+            send_email_notification,
+            request['new_email'],  # Send to new email
+            "Emailadres gewijzigd - KotMelding",
+            f"""
+            <h2>Uw emailadres is gewijzigd</h2>
+            <p>Beste {request['student_name']},</p>
+            <p>Uw aanvraag om uw emailadres te wijzigen is goedgekeurd door uw verhuurder.</p>
+            <p><strong>Oud emailadres:</strong> {request['student_email']}</p>
+            <p><strong>Nieuw emailadres:</strong> {request['new_email']}</p>
+            <p>Vanaf nu kunt u inloggen met uw nieuwe emailadres.</p>
+            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            """
+        )
+        
+        return {'message': 'Emailwijziging is goedgekeurd en doorgevoerd'}
+    else:
+        # Reject the request
+        await db.email_change_requests.update_one(
+            {'approval_token': token},
+            {'$set': {
+                'status': 'rejected',
+                'processed_at': now,
+                'processed_by': user['id'],
+                'rejection_reason': approval.reason
+            }}
+        )
+        
+        # Notify student
+        background_tasks.add_task(
+            send_email_notification,
+            request['student_email'],
+            "Emailwijziging afgewezen - KotMelding",
+            f"""
+            <h2>Uw emailwijziging is afgewezen</h2>
+            <p>Beste {request['student_name']},</p>
+            <p>Uw aanvraag om uw emailadres te wijzigen naar <strong>{request['new_email']}</strong> is helaas afgewezen.</p>
+            {f"<p><strong>Reden:</strong> {approval.reason}</p>" if approval.reason else ""}
+            <p>Neem contact op met uw verhuurder voor meer informatie.</p>
+            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            """
+        )
+        
+        return {'message': 'Emailwijziging is afgewezen'}
 
 @api_router.post("/properties", response_model=PropertyResponse)
 async def create_property(prop: PropertyCreate, user: dict = Depends(get_current_user)):
@@ -942,7 +1333,7 @@ async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends
 # Health check
 @api_router.get("/")
 async def root():
-    return {"message": "KotMelding API is running", "version": "1.1.0"}
+    return {"message": "KotMelding API is running", "version": "1.2.0"}
 
 # Include router
 app.include_router(api_router)

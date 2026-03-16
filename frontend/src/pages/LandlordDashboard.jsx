@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { 
-  Search, LogOut, User, Clock, Menu, X, Plus,
+  Search, LogOut, User, Clock, Menu, X, Plus, Mail,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, 
   CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Bell, Home, Building2, Users, MapPin
 } from "lucide-react";
@@ -54,6 +54,9 @@ const LandlordDashboard = () => {
   const [showNewProperty, setShowNewProperty] = useState(false);
   const [newPropertyData, setNewPropertyData] = useState({ name: "", address: "" });
   const [creatingProperty, setCreatingProperty] = useState(false);
+  
+  // Email change requests
+  const [pendingEmailRequests, setPendingEmailRequests] = useState([]);
 
   useEffect(() => {
     fetchProperties();
@@ -67,8 +70,12 @@ const LandlordDashboard = () => {
 
   const fetchProperties = async () => {
     try {
-      const response = await authAxios.get("/properties");
-      setProperties(response.data);
+      const [propsRes, emailReqsRes] = await Promise.all([
+        authAxios.get("/properties"),
+        authAxios.get("/email-change-requests/pending")
+      ]);
+      setProperties(propsRes.data);
+      setPendingEmailRequests(emailReqsRes.data);
     } catch (error) {
       console.error("Failed to fetch properties", error);
     }
@@ -387,6 +394,45 @@ const LandlordDashboard = () => {
                 </Button>
               </div>
             </div>
+
+            {/* Pending Email Change Requests Banner */}
+            {pendingEmailRequests.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4 }}
+                className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 mb-6"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0">
+                    <Mail className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-amber-400 font-medium">
+                      {pendingEmailRequests.length} emailwijziging{pendingEmailRequests.length > 1 ? 'en' : ''} wacht{pendingEmailRequests.length > 1 ? 'en' : ''} op goedkeuring
+                    </h3>
+                    <p className="text-sm text-slate-400 mt-1">
+                      Studenten hebben aangevraagd hun emailadres te wijzigen
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {pendingEmailRequests.map((req) => (
+                        <Link key={req.id} to={`/email-wijziging/${req.approval_token || req.id}`}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-amber-500/30 text-amber-400 hover:bg-amber-500/10 h-8"
+                            data-testid={`email-request-${req.id}`}
+                          >
+                            {req.student_name}
+                            <ArrowRight className="w-3 h-3 ml-1" />
+                          </Button>
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
 
             {/* Stats cards */}
             {stats && (

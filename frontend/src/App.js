@@ -16,6 +16,8 @@ import TicketDetail from "./pages/TicketDetail";
 import PropertyOnboarding from "./pages/PropertyOnboarding";
 import PropertyDetail from "./pages/PropertyDetail";
 import JoinProperty from "./pages/JoinProperty";
+import ProfilePage from "./pages/ProfilePage";
+import EmailChangeApproval from "./pages/EmailChangeApproval";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -204,6 +206,16 @@ function AppRoutes() {
         <Route path="/ticket/:id" element={
           <ProtectedRoute>
             <PageWrapper><TicketDetail /></PageWrapper>
+          </ProtectedRoute>
+        } />
+        <Route path="/profiel" element={
+          <ProtectedRoute allowedRoles={['student']}>
+            <PageWrapper><ProfilePage /></PageWrapper>
+          </ProtectedRoute>
+        } />
+        <Route path="/email-wijziging/:token" element={
+          <ProtectedRoute allowedRoles={['landlord']}>
+            <PageWrapper><EmailChangeApproval /></PageWrapper>
           </ProtectedRoute>
         } />
       </Routes>
