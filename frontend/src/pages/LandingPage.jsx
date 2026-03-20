@@ -57,7 +57,7 @@ const LandingPage = () => {
           <div className="flex items-center justify-between h-16">
             <Link to="/" className="flex items-center gap-2">
               <span className="text-2xl font-bold text-white font-['Outfit']">
-                Kot<span className="text-indigo-500">Melding</span>
+                Kot<span className="text-indigo-500">Klusser</span>
               </span>
             </Link>
             <div className="flex items-center gap-4">
@@ -95,7 +95,7 @@ const LandingPage = () => {
                 </span>
               </h1>
               <p className="mt-6 text-lg text-slate-400 max-w-lg">
-                Het centrale platform voor studenten en verhuurders om defecten in studentenkamers efficiënt te melden, op te volgen en op te lossen.
+                Het platform voor studenten en koteigenaars om defecten in studentenkoten efficiënt te melden, op te volgen en op te lossen.
               </p>
               <div className="mt-8 flex flex-wrap gap-4">
                 <Link to="/register">
@@ -104,7 +104,7 @@ const LandingPage = () => {
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 glow-primary group"
                     data-testid="hero-register-btn"
                   >
-                    Start nu gratis
+                    Nieuw hier? Start nu
                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
@@ -126,7 +126,7 @@ const LandingPage = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  Geen creditcard nodig
+                  Gebruiksvriendelijk
                 </div>
               </div>
             </motion.div>
@@ -257,10 +257,10 @@ const LandingPage = () => {
       <footer className="py-8 px-4 sm:px-6 lg:px-8 border-t border-white/5">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <span className="text-xl font-bold text-white font-['Outfit']">
-            Kot<span className="text-indigo-500">Melding</span>
+            Kot<span className="text-indigo-500">Klusser</span>
           </span>
           <p className="text-slate-400 text-sm">
-            © 2024 KotMelding. Alle rechten voorbehouden.
+            © 2024 KotKlusser. Alle rechten voorbehouden.
           </p>
         </div>
       </footer>

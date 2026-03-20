@@ -27,10 +27,9 @@ const categoryIcons = {
 };
 
 const statusLabels = {
+  verstuurd: "Verstuurd",
   ontvangen: "Ontvangen",
   in_behandeling: "In Behandeling",
-  ingepland: "Ingepland",
-  in_uitvoering: "In Uitvoering",
   opgelost: "Opgelost"
 };
 
@@ -530,10 +529,9 @@ const LandlordDashboard = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-[#161425] border-white/10">
                     <SelectItem value="all">Alle status</SelectItem>
+                    <SelectItem value="verstuurd">Verstuurd</SelectItem>
                     <SelectItem value="ontvangen">Ontvangen</SelectItem>
                     <SelectItem value="in_behandeling">In Behandeling</SelectItem>
-                    <SelectItem value="ingepland">Ingepland</SelectItem>
-                    <SelectItem value="in_uitvoering">In Uitvoering</SelectItem>
                     <SelectItem value="opgelost">Opgelost</SelectItem>
                   </SelectContent>
                 </Select>

@@ -10,7 +10,7 @@ import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
 import { toast } from "sonner";
-import { 
+import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, Image, X,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check
 } from "lucide-react";
@@ -28,21 +28,19 @@ const categoryIcons = {
 };
 
 const statusLabels = {
+  verstuurd: "Verstuurd",
   ontvangen: "Ontvangen",
   in_behandeling: "In Behandeling",
-  ingepland: "Ingepland",
-  in_uitvoering: "In Uitvoering",
   opgelost: "Opgelost"
 };
-
-const statusOrder = ['ontvangen', 'in_behandeling', 'ingepland', 'in_uitvoering', 'opgelost'];
+const statusOrder = ['verstuurd', 'ontvangen', 'in_behandeling', 'opgelost'];
 
 const TicketDetail = () => {
   const { id } = useParams();
   const { user, authAxios } = useAuth();
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
-  
+
   const [ticket, setTicket] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState("");
@@ -86,7 +84,7 @@ const TicketDetail = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim()) return;
-    
+
     setSending(true);
     try {
       const response = await authAxios.post(`/tickets/${id}/messages`, {
@@ -169,8 +167,8 @@ const TicketDetail = () => {
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 glass">
         <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link 
-            to={user?.role === 'landlord' ? '/verhuurder' : '/dashboard'} 
+          <Link
+            to={user?.role === 'landlord' ? '/verhuurder' : '/dashboard'}
             className="text-slate-400 hover:text-white"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -198,34 +196,31 @@ const TicketDetail = () => {
             {/* Status timeline */}
             <div className="mb-6">
               <p className="text-sm text-slate-400 mb-3">Status</p>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center">
                 {statusOrder.map((status, idx) => (
-                  <div key={status} className="flex items-center">
-                    <div 
-                      className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                        idx <= currentStatusIndex 
-                          ? 'bg-indigo-600 text-white' 
-                          : 'bg-white/5 text-slate-500'
-                      }`}
-                    >
-                      {idx < currentStatusIndex ? (
-                        <Check className="w-4 h-4" />
-                      ) : (
-                        idx + 1
-                      )}
+                  <div key={status} className="flex items-center flex-1 last:flex-none">
+                    <div className="flex flex-col items-center">
+                      <div
+                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${idx <= currentStatusIndex
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-white/5 text-slate-500'
+                          }`}
+                      >
+                        {idx < currentStatusIndex ? (
+                          <Check className="w-4 h-4" />
+                        ) : (
+                          idx + 1
+                        )}
+                      </div>
+                      <span className="text-xs text-slate-500 mt-1 whitespace-nowrap">
+                        {statusLabels[status]}
+                      </span>
                     </div>
                     {idx < statusOrder.length - 1 && (
-                      <div className={`w-8 h-0.5 ${idx < currentStatusIndex ? 'bg-indigo-600' : 'bg-white/10'}`} />
+                      <div className={`flex-1 h-0.5 mx-2 mb-4 ${idx < currentStatusIndex ? 'bg-indigo-600' : 'bg-white/10'}`} />
                     )}
                   </div>
                 ))}
-              </div>
-              <div className="flex justify-between mt-2 text-xs text-slate-500">
-                <span>Ontvangen</span>
-                <span>In Behandeling</span>
-                <span>Ingepland</span>
-                <span>In Uitvoering</span>
-                <span>Opgelost</span>
               </div>
             </div>
 
@@ -294,8 +289,8 @@ const TicketDetail = () => {
                     <Dialog key={idx}>
                       <DialogTrigger asChild>
                         <button className="shrink-0" data-testid={`photo-${idx}`}>
-                          <img 
-                            src={photo} 
+                          <img
+                            src={photo}
                             alt={`Foto ${idx + 1}`}
                             className="w-24 h-24 object-cover rounded-lg hover:opacity-80 transition-opacity cursor-pointer"
                           />
@@ -316,8 +311,8 @@ const TicketDetail = () => {
                 <div className="flex flex-wrap gap-4">
                   <div className="flex-1 min-w-[200px]">
                     <p className="text-sm text-slate-400 mb-2">Status wijzigen</p>
-                    <Select 
-                      value={ticket.status} 
+                    <Select
+                      value={ticket.status}
                       onValueChange={handleStatusUpdate}
                       disabled={updating}
                     >
@@ -325,10 +320,9 @@ const TicketDetail = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#161425] border-white/10">
+                        <SelectItem value="verstuurd">Verstuurd</SelectItem>
                         <SelectItem value="ontvangen">Ontvangen</SelectItem>
                         <SelectItem value="in_behandeling">In Behandeling</SelectItem>
-                        <SelectItem value="ingepland">Ingepland</SelectItem>
-                        <SelectItem value="in_uitvoering">In Uitvoering</SelectItem>
                         <SelectItem value="opgelost">Opgelost</SelectItem>
                       </SelectContent>
                     </Select>
@@ -338,8 +332,8 @@ const TicketDetail = () => {
                     <p className="text-sm text-slate-400 mb-2">Reparatie inplannen</p>
                     <Popover>
                       <PopoverTrigger asChild>
-                        <Button 
-                          variant="outline" 
+                        <Button
+                          variant="outline"
                           className="w-full justify-start bg-[#1C1A2E] border-white/10 text-white hover:bg-white/5"
                           data-testid="schedule-date-btn"
                         >
@@ -365,9 +359,9 @@ const TicketDetail = () => {
                   <label className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-white/10 rounded-lg cursor-pointer hover:border-indigo-500/50 transition-colors">
                     <Upload className="w-5 h-5 text-slate-400" />
                     <span className="text-slate-400">Klik om foto toe te voegen</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
+                    <input
+                      type="file"
+                      accept="image/*"
                       onChange={handlePhotoUpload}
                       className="hidden"
                       data-testid="landlord-photo-input"
@@ -397,16 +391,15 @@ const TicketDetail = () => {
                 </div>
               ) : (
                 messages.map((msg) => (
-                  <div 
+                  <div
                     key={msg.id}
                     className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
                   >
-                    <div 
-                      className={`max-w-[80%] p-3 ${
-                        msg.sender_role === 'landlord' 
-                          ? 'chat-bubble-landlord text-white' 
+                    <div
+                      className={`max-w-[80%] p-3 ${msg.sender_role === 'landlord'
+                          ? 'chat-bubble-landlord text-white'
                           : 'chat-bubble-student text-slate-200'
-                      }`}
+                        }`}
                       data-testid={`message-${msg.id}`}
                     >
                       {msg.sender_id !== user?.id && (
@@ -436,8 +429,8 @@ const TicketDetail = () => {
             className="flex-1 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500"
             data-testid="message-input"
           />
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             disabled={!newMessage.trim() || sending}
             className="bg-indigo-600 hover:bg-indigo-700 text-white px-6"
             data-testid="send-message-btn"

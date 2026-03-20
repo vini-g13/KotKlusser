@@ -1229,7 +1229,7 @@ async def create_ticket(
         'category': ticket.category,
         'location': ticket.location,
         'urgency': ticket.urgency,
-        'status': 'ontvangen',
+        'status': 'verstuurd',
         'created_by': user['id'],
         'created_by_name': user['name'],
         'property_id': property_id,
@@ -1345,10 +1345,9 @@ async def update_ticket(
     student = await db.users.find_one({'id': ticket['created_by']}, {'_id': 0})
     if student and update.status:
         status_text = {
+            'verstuurd': 'Verstuurd',
             'ontvangen': 'Ontvangen',
             'in_behandeling': 'In Behandeling',
-            'ingepland': 'Ingepland',
-            'in_uitvoering': 'In Uitvoering',
             'opgelost': 'Opgelost'
         }
         background_tasks.add_task(

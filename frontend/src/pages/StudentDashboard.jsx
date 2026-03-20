@@ -26,10 +26,9 @@ const categoryIcons = {
 };
 
 const statusLabels = {
+  verstuurd: "Verstuurd",
   ontvangen: "Ontvangen",
   in_behandeling: "In Behandeling",
-  ingepland: "Ingepland",
-  in_uitvoering: "In Uitvoering",
   opgelost: "Opgelost"
 };
 
