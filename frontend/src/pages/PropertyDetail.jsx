@@ -29,6 +29,25 @@ const PropertyDetail = () => {
     fetchData();
   }, [id]);
 
+  useEffect(() => {
+    const reload = () => fetchProperty();
+    window.addEventListener('propertiesUpdated', reload);
+    window.addEventListener('focus', reload);
+    return () => {
+      window.removeEventListener('propertiesUpdated', reload);
+      window.removeEventListener('focus', reload);
+    };
+  }, []);
+
+  const fetchProperty = async () => {
+    try {
+      const propRes = await authAxios.get(`/properties/${id}`);
+      setProperty(propRes.data);
+    } catch (error) {
+      // silently fail on background reload
+    }
+  };
+
   const fetchData = async () => {
     try {
       const [propRes, tenantsRes] = await Promise.all([

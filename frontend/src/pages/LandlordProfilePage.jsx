@@ -6,10 +6,11 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
-import { 
-  ArrowLeft, User, Mail, Phone, Building2, 
-  Save, AlertCircle, Clock, Check, X, Edit3, Lock
+import {
+  ArrowLeft, User, Mail, Phone, Building2, MapPin,
+  Save, AlertCircle, Clock, Check, X, Edit3, Lock, Trash2
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -30,6 +31,13 @@ const LandlordProfilePage = () => {
   });
   const [hasChanges, setHasChanges] = useState(false);
   
+  // Properties
+  const [properties, setProperties] = useState([]);
+  const [editingProperty, setEditingProperty] = useState(null);
+  const [editPropertyData, setEditPropertyData] = useState({ name: "", address: "", floor_count: 0 });
+  const [savingProperty, setSavingProperty] = useState(false);
+  const [pendingDeleteProperty, setPendingDeleteProperty] = useState(null);
+
   // Email change request
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -42,9 +50,10 @@ const LandlordProfilePage = () => {
 
   const fetchProfile = async () => {
     try {
-      const [profileRes, requestsRes] = await Promise.all([
+      const [profileRes, requestsRes, propsRes] = await Promise.all([
         authAxios.get("/profile"),
-        authAxios.get("/profile/landlord-email-change-requests")
+        authAxios.get("/profile/landlord-email-change-requests"),
+        authAxios.get("/properties")
       ]);
       setProfile(profileRes.data);
       setFormData({
@@ -54,11 +63,48 @@ const LandlordProfilePage = () => {
         company_name: profileRes.data.company_name || ""
       });
       setEmailRequests(requestsRes.data);
+      setProperties(propsRes.data);
     } catch (error) {
       toast.error("Kon profiel niet laden");
       navigate("/verhuurder");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEditProperty = (prop) => {
+    setEditingProperty(prop);
+    setEditPropertyData({ name: prop.name, address: prop.address, floor_count: prop.floor_count ?? 0 });
+  };
+
+  const handleSaveProperty = async () => {
+    setSavingProperty(true);
+    try {
+      const response = await authAxios.patch(`/properties/${editingProperty.id}`, {
+        name: editPropertyData.name,
+        address: editPropertyData.address,
+        floor_count: editPropertyData.floor_count
+      });
+      setProperties(properties.map(p => p.id === editingProperty.id ? response.data : p));
+      setEditingProperty(null);
+      toast.success("Pand succesvol bijgewerkt");
+      window.dispatchEvent(new CustomEvent('propertiesUpdated'));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon pand niet opslaan");
+    } finally {
+      setSavingProperty(false);
+    }
+  };
+
+  const handleDeleteProperty = async () => {
+    try {
+      await authAxios.delete(`/properties/${pendingDeleteProperty.id}`);
+      setProperties(properties.filter(p => p.id !== pendingDeleteProperty.id));
+      setPendingDeleteProperty(null);
+      toast.success("Pand verwijderd");
+      window.dispatchEvent(new CustomEvent('propertiesUpdated'));
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon pand niet verwijderen");
     }
   };
 
@@ -447,6 +493,65 @@ const LandlordProfilePage = () => {
             </motion.div>
           )}
 
+          {/* Mijn Panden */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.35 }}
+            className="bg-[#161425] border border-white/5 rounded-xl p-6"
+          >
+            <h3 className="text-white font-medium mb-6 flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-indigo-400" />
+              Mijn Panden
+            </h3>
+
+            {properties.length === 0 ? (
+              <p className="text-sm text-slate-500">Geen panden gevonden. Voeg een pand toe via het dashboard.</p>
+            ) : (
+              <div className="space-y-3">
+                {properties.map((prop) => (
+                  <div key={prop.id} className="flex items-center gap-4 p-3 rounded-lg bg-[#1C1A2E] border border-white/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{prop.name}</p>
+                      <p className="text-sm text-slate-400 flex items-center gap-1 mt-0.5">
+                        <MapPin className="w-3 h-3 shrink-0" />
+                        <span className="truncate">{prop.address}</span>
+                      </p>
+                      <div className="flex gap-2 mt-1.5">
+                        <Badge className="bg-white/5 text-slate-400 border-white/10 text-xs">
+                          {prop.floor_count ?? 0} verdiepingen
+                        </Badge>
+                        <Badge className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-xs">
+                          {prop.tenant_count} huurders
+                        </Badge>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEditProperty(prop)}
+                        className="text-slate-400 hover:text-white hover:bg-white/5"
+                        data-testid={`edit-property-${prop.id}`}
+                      >
+                        <Edit3 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setPendingDeleteProperty(prop)}
+                        className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                        data-testid={`delete-property-${prop.id}`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
           {/* Account Info */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -461,6 +566,83 @@ const LandlordProfilePage = () => {
           </motion.div>
         </div>
       </main>
+
+      {/* Edit Property Dialog */}
+      <Dialog open={!!editingProperty} onOpenChange={(open) => !open && setEditingProperty(null)}>
+        <DialogContent className="bg-[#161425] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white">Pand bewerken</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-slate-300">Naam</Label>
+              <Input
+                value={editPropertyData.name}
+                onChange={(e) => setEditPropertyData({ ...editPropertyData, name: e.target.value })}
+                className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">Adres</Label>
+              <Input
+                value={editPropertyData.address}
+                onChange={(e) => setEditPropertyData({ ...editPropertyData, address: e.target.value })}
+                className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-slate-300">Aantal verdiepingen</Label>
+              <Input
+                type="number"
+                min="0"
+                max="50"
+                value={editPropertyData.floor_count}
+                onChange={(e) => setEditPropertyData({ ...editPropertyData, floor_count: parseInt(e.target.value) || 0 })}
+                className="bg-[#1C1A2E] border-white/10 text-white"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingProperty(null)}
+              className="border-white/10 text-white"
+            >
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveProperty}
+              disabled={savingProperty}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {savingProperty ? "Opslaan..." : "Opslaan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Property AlertDialog */}
+      <AlertDialog open={!!pendingDeleteProperty} onOpenChange={(open) => !open && setPendingDeleteProperty(null)}>
+        <AlertDialogContent className="bg-[#161425] border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Pand verwijderen?</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              Bent u zeker dat u <strong className="text-white">{pendingDeleteProperty?.name}</strong> wilt verwijderen? Dit kan niet ongedaan gemaakt worden.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-white bg-transparent hover:bg-white/5">
+              Annuleren
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteProperty}
+              className="bg-red-600 hover:bg-red-700 text-white"
+            >
+              Verwijderen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

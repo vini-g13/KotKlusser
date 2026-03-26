@@ -52,7 +52,7 @@ const PropertyOnboarding = () => {
             <Sparkles className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-white font-['Outfit'] mb-2">
-            Welkom bij KotMelding!
+            Welkom bij KotKlusser!
           </h1>
           <p className="text-slate-400">
             Laten we beginnen met het toevoegen van uw eerste pand
@@ -108,7 +108,7 @@ const PropertyOnboarding = () => {
                   value={formData.floor_count}
                   onChange={(e) => setFormData({ ...formData, floor_count: parseInt(e.target.value) || 0 })}
                   placeholder="5"
-                  className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                  className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                   data-testid="property-floors-input"
                 />
               </div>

@@ -4,6 +4,7 @@ import { useAuth, API } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key } from "lucide-react";
 import { motion } from "framer-motion";
@@ -117,7 +118,7 @@ const RegisterPage = () => {
 
           <div className="mb-8">
             <Link to="/" className="text-2xl font-bold text-white font-['Outfit']">
-              Kot<span className="text-indigo-500">Melding</span>
+              Kot<span className="text-indigo-500">Klusser</span>
             </Link>
           </div>
 
@@ -294,30 +295,22 @@ const RegisterPage = () => {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="floor" className="text-slate-300">Verdieping</Label>
-                      <div className="relative">
-                        <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 pointer-events-none z-10" />
-                        <select
-                          id="floor"
-                          name="floor"
-                          value={formData.floor}
-                          onChange={handleChange}
-                          required={!!formData.join_code}
-                          className="w-full pl-10 pr-4 h-12 bg-[#161425] border border-white/10 text-white rounded-md focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 appearance-none cursor-pointer"
-                          data-testid="register-floor-select"
-                        >
-                          <option value="" disabled className="bg-[#161425] text-slate-500">Selecteer</option>
+                      <Select
+                        value={formData.floor}
+                        onValueChange={(value) => setFormData({ ...formData, floor: value })}
+                        data-testid="register-floor-select"
+                      >
+                        <SelectTrigger className="bg-[#161425] border-white/10 text-white h-12" id="floor">
+                          <SelectValue placeholder="Selecteer" />
+                        </SelectTrigger>
+                        <SelectContent className="bg-[#161425] border-white/10">
                           {propertyInfo?.floors?.map((floor) => (
-                            <option key={floor.value} value={floor.value} className="bg-[#161425] text-white">
+                            <SelectItem key={floor.value} value={floor.value} className="text-white">
                               {floor.label}
-                            </option>
+                            </SelectItem>
                           ))}
-                        </select>
-                        <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
-                          <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </div>
-                      </div>
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
                 )}

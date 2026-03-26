@@ -50,7 +50,7 @@ const LoginPage = () => {
 
           <div className="mb-8">
             <Link to="/" className="text-2xl font-bold text-white font-['Outfit']">
-              Kot<span className="text-indigo-500">Melding</span>
+              Kot<span className="text-indigo-500">Klusser</span>
             </Link>
           </div>
 
