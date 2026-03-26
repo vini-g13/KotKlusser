@@ -38,7 +38,7 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 APP_URL = os.environ.get('APP_URL', 'https://kot-quick.preview.emergentagent.com')
 
 # Create the main app
-app = FastAPI(title="KotMelding API")
+app = FastAPI(title="KotKlusser API")
 api_router = APIRouter(prefix="/api")
 security = HTTPBearer()
 
@@ -597,7 +597,7 @@ async def landlord_request_email_change(
     background_tasks.add_task(
         send_email_notification,
         request.new_email,  # Send to new email
-        "Bevestig uw nieuwe emailadres - KotMelding",
+        "Bevestig uw nieuwe emailadres - KotKlusser",
         f"""
         <h2>Bevestig uw nieuwe emailadres</h2>
         <p>Beste {user['name']},</p>
@@ -609,7 +609,7 @@ async def landlord_request_email_change(
         <p>Of kopieer deze link: {confirmation_link}</p>
         <p><strong>Let op:</strong> Deze link is 24 uur geldig.</p>
         <p>Als u deze aanvraag niet heeft gedaan, kunt u deze email negeren.</p>
-        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        <p>Met vriendelijke groet,<br>KotKlusser Team</p>
         """
     )
     
@@ -685,7 +685,7 @@ async def confirm_landlord_email_change(token: str, background_tasks: Background
     background_tasks.add_task(
         send_email_notification,
         request['old_email'],
-        "Emailadres gewijzigd - KotMelding",
+        "Emailadres gewijzigd - KotKlusser",
         f"""
         <h2>Uw emailadres is gewijzigd</h2>
         <p>Beste {request['landlord_name']},</p>
@@ -694,7 +694,7 @@ async def confirm_landlord_email_change(token: str, background_tasks: Background
         <p><strong>Nieuw emailadres:</strong> {request['new_email']}</p>
         <p>Vanaf nu kunt u inloggen met uw nieuwe emailadres.</p>
         <p>Als u deze wijziging niet heeft aangevraagd, neem dan onmiddellijk contact met ons op.</p>
-        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        <p>Met vriendelijke groet,<br>KotKlusser Team</p>
         """
     )
     
@@ -777,7 +777,7 @@ async def request_email_change(
         <p>Klik op de onderstaande link om de aanvraag te bekijken en goed te keuren of af te wijzen:</p>
         <p><a href="{approval_link}" style="background-color: #6366F1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">Aanvraag bekijken</a></p>
         <p>Of kopieer deze link: {approval_link}</p>
-        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        <p>Met vriendelijke groet,<br>KotKlusser Team</p>
         """
     )
     
@@ -894,7 +894,7 @@ async def process_email_change_request(
         background_tasks.add_task(
             send_email_notification,
             request['new_email'],  # Send to new email
-            "Emailadres gewijzigd - KotMelding",
+            "Emailadres gewijzigd - KotKlusser",
             f"""
             <h2>Uw emailadres is gewijzigd</h2>
             <p>Beste {request['student_name']},</p>
@@ -902,7 +902,7 @@ async def process_email_change_request(
             <p><strong>Oud emailadres:</strong> {request['student_email']}</p>
             <p><strong>Nieuw emailadres:</strong> {request['new_email']}</p>
             <p>Vanaf nu kunt u inloggen met uw nieuwe emailadres.</p>
-            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            <p>Met vriendelijke groet,<br>KotKlusser Team</p>
             """
         )
         
@@ -923,14 +923,14 @@ async def process_email_change_request(
         background_tasks.add_task(
             send_email_notification,
             request['student_email'],
-            "Emailwijziging afgewezen - KotMelding",
+            "Emailwijziging afgewezen - KotKlusser",
             f"""
             <h2>Uw emailwijziging is afgewezen</h2>
             <p>Beste {request['student_name']},</p>
             <p>Uw aanvraag om uw emailadres te wijzigen naar <strong>{request['new_email']}</strong> is helaas afgewezen.</p>
             {f"<p><strong>Reden:</strong> {approval.reason}</p>" if approval.reason else ""}
             <p>Neem contact op met uw verhuurder voor meer informatie.</p>
-            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            <p>Met vriendelijke groet,<br>KotKlusser Team</p>
             """
         )
         
@@ -1061,6 +1061,26 @@ async def update_property(property_id: str, update: PropertyUpdate, user: dict =
         tenant_count=tenant_count,
         created_at=updated['created_at']
     )
+
+@api_router.delete("/properties/{property_id}")
+async def delete_property(property_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden verwijderen')
+
+    prop = await db.properties.find_one({'id': property_id, 'landlord_id': user['id']}, {'_id': 0})
+    if not prop:
+        raise HTTPException(status_code=404, detail='Pand niet gevonden')
+
+    # Ontkoppel alle huurders van dit pand
+    await db.users.update_many(
+        {'property_id': property_id},
+        {'$set': {'property_id': None, 'room_number': None, 'floor': None}}
+    )
+
+    # Verwijder het pand
+    await db.properties.delete_one({'id': property_id})
+
+    return {'message': 'Pand succesvol verwijderd'}
 
 @api_router.post("/properties/{property_id}/regenerate-code", response_model=PropertyResponse)
 async def regenerate_join_code(property_id: str, user: dict = Depends(get_current_user)):
@@ -1258,7 +1278,7 @@ async def create_ticket(
         <p><strong>Locatie:</strong> {ticket.location}</p>
         <p><strong>Geschatte reparatiedatum:</strong> {ticket_doc['estimated_repair_date'][:10]}</p>
         <p>U kunt de status van uw melding volgen in uw dashboard.</p>
-        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+        <p>Met vriendelijke groet,<br>KotKlusser Team</p>
         """
     )
     
@@ -1360,7 +1380,7 @@ async def update_ticket(
             <p>De status van uw melding <strong>{ticket['title']}</strong> is bijgewerkt naar:</p>
             <p style="font-size: 18px; font-weight: bold; color: #6366F1;">{status_text.get(update.status, update.status)}</p>
             {'<p><strong>Geplande datum:</strong> ' + update.scheduled_date[:10] + '</p>' if update.scheduled_date else ''}
-            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            <p>Met vriendelijke groet,<br>KotKlusser Team</p>
             """
         )
     
@@ -1438,7 +1458,7 @@ async def create_message(
                         <h2>Nieuw bericht ontvangen</h2>
                         <p>Er is een nieuw bericht van {user['name']} voor ticket {ticket['ticket_number']}:</p>
                         <blockquote style="border-left: 3px solid #6366F1; padding-left: 10px; margin: 10px 0;">{message.content}</blockquote>
-                        <p>Met vriendelijke groet,<br>KotMelding Team</p>
+                        <p>Met vriendelijke groet,<br>KotKlusser Team</p>
                         """
                     )
     else:
@@ -1452,7 +1472,7 @@ async def create_message(
                 <h2>Nieuw bericht van verhuurder</h2>
                 <p>Er is een nieuw bericht voor uw melding {ticket['ticket_number']}:</p>
                 <blockquote style="border-left: 3px solid #6366F1; padding-left: 10px; margin: 10px 0;">{message.content}</blockquote>
-                <p>Met vriendelijke groet,<br>KotMelding Team</p>
+                <p>Met vriendelijke groet,<br>KotKlusser Team</p>
                 """
             )
     
@@ -1539,7 +1559,7 @@ async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends
             {''.join([f"<li>{t['ticket_number']}: {t['title']}</li>" for t in stale_tickets[:10]])}
             </ul>
             <p>Log in om deze meldingen te bekijken en op te volgen.</p>
-            <p>Met vriendelijke groet,<br>KotMelding Team</p>
+            <p>Met vriendelijke groet,<br>KotKlusser Team</p>
             """
         )
     
@@ -1548,7 +1568,7 @@ async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends
 # Health check
 @api_router.get("/")
 async def root():
-    return {"message": "KotMelding API is running", "version": "1.3.0"}
+    return {"message": "KotKlusser API is running", "version": "1.3.0"}
 
 # Include router
 app.include_router(api_router)

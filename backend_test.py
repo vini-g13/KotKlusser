@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Comprehensive Backend API Testing for KotMelding System
+Comprehensive Backend API Testing for KotKlusser System
 Tests all authentication, ticket management, messaging, and stats endpoints
 """
 
@@ -11,7 +11,7 @@ from datetime import datetime
 import base64
 import io
 
-class KotMeldingAPITester:
+class KotKlusserAPITester:
     def __init__(self, base_url="https://kot-quick.preview.emergentagent.com/api"):
         self.base_url = base_url
         self.student_token = None
@@ -75,7 +75,7 @@ class KotMeldingAPITester:
     def test_health_check(self):
         """Test API health endpoint"""
         status, response = self.make_request('GET', '')
-        success = status == 200 and "KotMelding API is running" in response.get('message', '')
+        success = status == 200 and "KotKlusser API is running" in response.get('message', '')
         self.log_test("Health Check", success, f"Status: {status}", response)
         return success
 
@@ -849,7 +849,7 @@ class KotMeldingAPITester:
     
     def run_all_tests(self):
         """Run all tests in sequence"""
-        print(f"\n🚀 Starting KotMelding Backend API Tests")
+        print(f"\n🚀 Starting KotKlusser Backend API Tests")
         print(f"📡 Testing API at: {self.base_url}")
         print("=" * 60)
         
@@ -941,7 +941,7 @@ class KotMeldingAPITester:
 def main():
     """Main test runner"""
     try:
-        tester = KotMeldingAPITester()
+        tester = KotKlusserAPITester()
         success = tester.run_all_tests()
         return 0 if success else 1
     except Exception as e:
