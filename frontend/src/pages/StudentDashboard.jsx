@@ -6,6 +6,7 @@ import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
 import { 
   Plus, Search, LogOut, User, Clock, Building2, Key, DoorOpen, Layers,
@@ -44,6 +45,10 @@ const StudentDashboard = () => {
   const [joinData, setJoinData] = useState({ join_code: "", room_number: "", floor: "" });
   const [joining, setJoining] = useState(false);
   const [propertyPreview, setPropertyPreview] = useState(null);
+
+  useEffect(() => {
+    refreshUser();
+  }, []);
 
   useEffect(() => {
     fetchTickets();
@@ -100,10 +105,17 @@ const StudentDashboard = () => {
     }
   };
 
-  const filteredTickets = tickets.filter(ticket => 
-    ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTickets = tickets
+    .filter(ticket =>
+      ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aResolved = a.status === 'opgelost' ? 1 : 0;
+      const bResolved = b.status === 'opgelost' ? 1 : 0;
+      if (aResolved !== bResolved) return aResolved - bResolved;
+      return 0;
+    });
 
   const openTickets = tickets.filter(t => t.status !== 'opgelost').length;
   const resolvedTickets = tickets.filter(t => t.status === 'opgelost').length;
@@ -116,7 +128,7 @@ const StudentDashboard = () => {
           <div className="flex items-center justify-between h-16">
             <Link to="/dashboard" className="flex items-center gap-2">
               <span className="text-xl font-bold text-white font-['Outfit']">
-                Kot<span className="text-indigo-500">Melding</span>
+                Kot<span className="text-indigo-500">Klusser</span>
               </span>
             </Link>
             <div className="flex items-center gap-4">
@@ -243,16 +255,22 @@ const StudentDashboard = () => {
                           </div>
                           <div className="space-y-2">
                             <Label className="text-slate-300">Verdieping</Label>
-                            <div className="relative">
-                              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                              <Input
-                                value={joinData.floor}
-                                onChange={(e) => setJoinData({ ...joinData, floor: e.target.value })}
-                                placeholder="Bijv. 1"
-                                className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-                                data-testid="join-floor-input"
-                              />
-                            </div>
+                            <Select
+                              value={joinData.floor}
+                              onValueChange={(value) => setJoinData({ ...joinData, floor: value })}
+                              data-testid="join-floor-input"
+                            >
+                              <SelectTrigger className="bg-[#1C1A2E] border-white/10 text-white h-12">
+                                <SelectValue placeholder="Selecteer verdieping" />
+                              </SelectTrigger>
+                              <SelectContent className="bg-[#161425] border-white/10">
+                                {propertyPreview?.floors?.map((floor) => (
+                                  <SelectItem key={floor.value} value={floor.value} className="text-white">
+                                    {floor.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
                           </div>
                         </>
                       )}

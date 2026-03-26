@@ -62,6 +62,14 @@ const LandlordDashboard = () => {
   }, []);
 
   useEffect(() => {
+    const handlePropertiesUpdated = () => {
+      fetchProperties();
+    };
+    window.addEventListener('propertiesUpdated', handlePropertiesUpdated);
+    return () => window.removeEventListener('propertiesUpdated', handlePropertiesUpdated);
+  }, []);
+
+  useEffect(() => {
     if (properties.length > 0 || selectedProperty === 'all') {
       fetchData();
     }
@@ -137,11 +145,18 @@ const LandlordDashboard = () => {
     }
   };
 
-  const filteredTickets = tickets.filter(ticket => 
-    ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    ticket.created_by_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredTickets = tickets
+    .filter(ticket =>
+      ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ticket.created_by_name.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    .sort((a, b) => {
+      const aResolved = a.status === 'opgelost' ? 1 : 0;
+      const bResolved = b.status === 'opgelost' ? 1 : 0;
+      if (aResolved !== bResolved) return aResolved - bResolved;
+      return 0;
+    });
 
   const selectedPropertyName = selectedProperty === 'all' 
     ? 'Alle panden' 
@@ -153,7 +168,7 @@ const LandlordDashboard = () => {
       <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-[#12111F] border-r border-white/5">
         <div className="flex items-center h-16 px-6 border-b border-white/5">
           <span className="text-xl font-bold text-white font-['Outfit']">
-            Kot<span className="text-indigo-500">Melding</span>
+            Kot<span className="text-indigo-500">Klusser</span>
           </span>
         </div>
         
@@ -301,7 +316,7 @@ const LandlordDashboard = () => {
             <Menu className="w-6 h-6" />
           </button>
           <span className="text-xl font-bold text-white font-['Outfit']">
-            Kot<span className="text-indigo-500">Melding</span>
+            Kot<span className="text-indigo-500">Klusser</span>
           </span>
           <Button variant="ghost" size="icon" onClick={handleLogout} className="text-slate-400">
             <LogOut className="w-5 h-5" />
@@ -329,7 +344,7 @@ const LandlordDashboard = () => {
             >
               <div className="flex items-center justify-between h-16 px-6 border-b border-white/5">
                 <span className="text-xl font-bold text-white font-['Outfit']">
-                  Kot<span className="text-indigo-500">Melding</span>
+                  Kot<span className="text-indigo-500">Klusser</span>
                 </span>
                 <button onClick={() => setSidebarOpen(false)} className="text-slate-400">
                   <X className="w-6 h-6" />
