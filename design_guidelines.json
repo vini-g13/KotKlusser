@@ -1,7 +1,7 @@
 {
   "design_system": {
     "identity": {
-      "name": "KotMelding",
+      "name": "KotKlusser",
       "personality": "Nocturnal Clarity",
       "tone": "Efficient, Reliable, Modern, Professional",
       "aesthetic": "Dark Mode SaaS (Linear/Raycast inspired)",
@@ -137,7 +137,7 @@
       "login_bg": "https://images.unsplash.com/photo-1768548273807-275b0e16fff3",
       "landlord_context": "https://images.unsplash.com/photo-1769026806508-9afd673962ae",
       "empty_state": "Use a clean SVG illustration or icon (e.g., Lucide 'CheckCircle' large with low opacity)",
-      "logo": "Text-based 'KotMelding' with a purple dot accent"
+      "logo": "Text-based 'KotKlusser' with a purple dot accent"
     },
     "icons": {
       "library": "lucide-react",

@@ -1,4 +1,4 @@
-# KotMelding - Student Housing Issue Reporting System
+# KotKlusser - Student Housing Issue Reporting System
 
 ## Original Problem Statement
 Build a modern, responsive web application for a student housing issue reporting system ("kot meldingssysteem") for students to report defects in their student room (kot) and for landlords to easily manage and resolve those reports.
