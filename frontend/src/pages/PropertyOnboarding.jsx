@@ -7,24 +7,20 @@ import { Label } from "../components/ui/label";
 import { toast } from "sonner";
 import { Building2, MapPin, ArrowRight, Sparkles, Layers } from "lucide-react";
 import { motion } from "framer-motion";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
 
 const PropertyOnboarding = () => {
   const { authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [showFloorConfirm, setShowFloorConfirm] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     address: "",
-    floor_count: 5
+    floor_count: ""
   });
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!formData.name.trim() || !formData.address.trim()) {
-      toast.error("Vul alle velden in");
-      return;
-    }
-
+  const submitProperty = async () => {
     setLoading(true);
     try {
       await authAxios.post("/properties", formData);
@@ -36,6 +32,23 @@ const PropertyOnboarding = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!formData.name.trim() || !formData.address.trim()) {
+      toast.error("Vul alle velden in");
+      return;
+    }
+    if (formData.floor_count === "") {
+      toast.error("Vul het aantal verdiepingen in");
+      return;
+    }
+    if (formData.floor_count === 0) {
+      setShowFloorConfirm(true);
+      return;
+    }
+    await submitProperty();
   };
 
   return (
@@ -104,16 +117,17 @@ const PropertyOnboarding = () => {
                   id="floor_count"
                   type="number"
                   min="0"
-                  max="50"
-                  value={formData.floor_count}
-                  onChange={(e) => setFormData({ ...formData, floor_count: parseInt(e.target.value) || 0 })}
-                  placeholder="5"
+                  value={formData.floor_count === "" ? "" : formData.floor_count}
+                  onChange={(e) => setFormData({ ...formData, floor_count: e.target.value === "" ? "" : Number(e.target.value) })}
+                  placeholder="Bijv. 3"
                   className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12 [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                   data-testid="property-floors-input"
                 />
               </div>
               <p className="text-xs text-slate-500">
-                Genereert automatisch: Gelijkvloers + Verdieping 1 t/m {formData.floor_count}
+                {formData.floor_count === "" || formData.floor_count === 0
+                  ? "Genereert automatisch de verdiepingen van uw pand"
+                  : `Genereert automatisch: Gelijkvloers + Verdieping 1 t/m ${formData.floor_count}`}
               </p>
             </div>
 
@@ -123,20 +137,10 @@ const PropertyOnboarding = () => {
               disabled={loading}
               data-testid="create-property-btn"
             >
-              {loading ? (
-                <span className="flex items-center justify-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Aanmaken...
-                </span>
-              ) : (
-                <>
-                  Pand aanmaken
-                  <ArrowRight className="w-4 h-4 ml-2" />
-                </>
-              )}
+              <>
+                Pand aanmaken
+                <ArrowRight className="w-4 h-4 ml-2" />
+              </>
             </Button>
           </form>
         </div>
@@ -145,6 +149,33 @@ const PropertyOnboarding = () => {
           U kunt later meer panden toevoegen via het dashboard
         </p>
       </motion.div>
+
+      <Dialog open={showFloorConfirm} onOpenChange={setShowFloorConfirm}>
+        <DialogContent className="bg-[#161425] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white">Bevestiging aantal verdiepingen</DialogTitle>
+          </DialogHeader>
+          <p className="text-slate-300 py-2">
+            Uw pand heeft enkel een gelijkvloers, zonder extra verdiepingen. Klopt dit?
+          </p>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowFloorConfirm(false)}
+              className="border-white/10 text-white"
+            >
+              Nee, aanpassen
+            </Button>
+            <Button
+              onClick={() => { setShowFloorConfirm(false); submitProperty(); }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+              data-testid="confirm-floor-zero"
+            >
+              Ja, bevestigen
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

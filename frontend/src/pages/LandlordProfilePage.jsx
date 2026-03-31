@@ -192,17 +192,10 @@ const LandlordProfilePage = () => {
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
               data-testid="save-profile-btn"
             >
-              {saving ? (
-                <span className="flex items-center gap-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                  Opslaan...
-                </span>
-              ) : (
-                <>
-                  <Save className="w-4 h-4 mr-2" />
-                  Opslaan
-                </>
-              )}
+              <>
+                <Save className="w-4 h-4 mr-2" />
+                Wijzigingen opslaan
+              </>
             </Button>
           )}
         </div>

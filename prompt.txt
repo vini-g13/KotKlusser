@@ -1,0 +1,57 @@
+Voer de volgende UI-aanpassingen door in het KotKlusser project. Er zijn 4 aparte problemen om op te lossen:
+
+---
+
+## 1. Consistente icoontjes in de "Nieuw pand toevoegen" dialog — `frontend/src/pages/LandlordDashboard.jsx`
+
+In de Dialog component met `DialogTitle "Nieuw pand toevoegen"` missen de invoervelden icoontjes. Voeg dezelfde icoontjes toe als in `PropertyOnboarding.jsx`:
+- Veld "Naam van het pand": voeg `Building2` icoon toe (relatief gepositioneerd links in het inputveld, zoals in PropertyOnboarding)
+- Veld "Adres": voeg `MapPin` icoon toe
+- Veld "Aantal verdiepingen": voeg `Layers` icoon toe
+- Importeer `MapPin` en `Layers` bovenaan indien nog niet aanwezig (Building2 is al geïmporteerd)
+- Pas de Input className aan zodat er `pl-10` padding is voor elk icoon, consistent met PropertyOnboarding.jsx
+
+---
+
+## 2. Knoptekst aanpassen in de "Nieuw pand toevoegen" dialog — `frontend/src/pages/LandlordDashboard.jsx`
+
+In dezelfde Dialog, in de `DialogFooter`, staat de bevestigingsknop (data-testid="confirm-create-property") met de tekst "Aanmaken". Verander dit naar "Pand aanmaken". Verwijder ook de volledige spinner/loading state uit deze knop — vervang dit:
+```jsx
+{creatingProperty ? (
+  <span>...spinner JSX...</span>
+) : (
+  "Aanmaken"
+)}
+```
+door gewoon:
+```jsx
+Pand aanmaken
+```
+De `disabled={creatingProperty}` mag behouden blijven.
+
+---
+
+## 3. Knoptekst en spinner in "Pand bewerken" dialog — `frontend/src/pages/LandlordProfilePage.jsx`
+
+In LandlordProfilePage.jsx staat een knop met de tekst "Opslaan" (met Save icoon) in de header. Deze knop heeft ook een spinner animatie bij het opslaan. Doe het volgende:
+- Verander de knoptekst van "Opslaan" naar "Wijzigingen opslaan"
+- Verwijder de volledige spinner/loading state. Vervang de huidige JSX (met de `animate-spin` div en "Opslaan...") door:
+```jsx
+<>
+  <Save className="w-4 h-4 mr-2" />
+  Wijzigingen opslaan
+</>
+```
+
+---
+
+## 4. Spinner verwijderen uit PropertyOnboarding — `frontend/src/pages/PropertyOnboarding.jsx`
+
+In de submit knop (data-testid="create-property-btn") staat een spinner animatie bij het laden. Verwijder de volledige ternary met de `animate-spin` SVG en vervang door:
+```jsx
+<>
+  Pand aanmaken
+  <ArrowRight className="w-4 h-4 ml-2" />
+</>
+```
+De `disabled={loading}` mag behouden blijven.
