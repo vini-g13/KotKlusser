@@ -591,7 +591,7 @@ const LandlordProfilePage = () => {
                 max="50"
                 value={editPropertyData.floor_count}
                 onChange={(e) => setEditPropertyData({ ...editPropertyData, floor_count: parseInt(e.target.value) || 0 })}
-                className="bg-[#1C1A2E] border-white/10 text-white"
+                className="bg-[#1C1A2E] border-white/10 text-white [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
               />
             </div>
           </div>
@@ -608,7 +608,7 @@ const LandlordProfilePage = () => {
               disabled={savingProperty}
               className="bg-indigo-600 hover:bg-indigo-700 text-white"
             >
-              {savingProperty ? "Opslaan..." : "Opslaan"}
+              {savingProperty ? "Opslaan..." : "Wijzigingen opslaan"}
             </Button>
           </DialogFooter>
         </DialogContent>

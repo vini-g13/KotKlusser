@@ -74,6 +74,10 @@ class UserResponse(BaseModel):
     floor: Optional[str] = None
     has_property: bool = False
     created_at: str
+    tile_config: Optional[List[dict]] = None
+
+class TileConfigUpdate(BaseModel):
+    tile_config: List[dict]
 
 class PropertyCreate(BaseModel):
     name: str
@@ -422,7 +426,8 @@ async def get_me(user: dict = Depends(get_current_user)):
         room_number=user.get('room_number'),
         floor=user.get('floor'),
         has_property=has_property,
-        created_at=user['created_at']
+        created_at=user['created_at'],
+        tile_config=user.get('tile_config')
     )
 
 # ============ PROFILE MANAGEMENT ROUTES ============
@@ -936,6 +941,11 @@ async def process_email_change_request(
         
         return {'message': 'Emailwijziging is afgewezen'}
 
+@api_router.put("/users/tile-config")
+async def update_tile_config(data: TileConfigUpdate, user: dict = Depends(get_current_user)):
+    await db.users.update_one({'id': user['id']}, {'$set': {'tile_config': data.tile_config}})
+    return {'success': True}
+
 @api_router.post("/properties", response_model=PropertyResponse)
 async def create_property(prop: PropertyCreate, user: dict = Depends(get_current_user)):
     if user['role'] != 'landlord':
@@ -1261,7 +1271,8 @@ async def create_ticket(
         'notes': None,
         'created_at': now,
         'updated_at': now,
-        'last_landlord_response': None
+        'last_landlord_response': None,
+        'last_reminder_sent': None
     }
     await db.tickets.insert_one(ticket_doc)
     
@@ -1314,6 +1325,32 @@ async def get_tickets(
     
     tickets = await db.tickets.find(query, {'_id': 0, 'last_landlord_response': 0}).sort('created_at', -1).to_list(1000)
     return [TicketResponse(**t) for t in tickets]
+
+@api_router.get("/tickets/unread-counts")
+async def get_unread_counts(user: dict = Depends(get_current_user)):
+    if user['role'] != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen ongelezen berichten opvragen')
+
+    landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
+    property_ids = [p['id'] for p in landlord_properties]
+
+    tickets = await db.tickets.find(
+        {'property_id': {'$in': property_ids}},
+        {'_id': 0, 'id': 1, 'last_landlord_read': 1}
+    ).to_list(1000)
+
+    result = {}
+    for ticket in tickets:
+        ticket_id = ticket['id']
+        last_read = ticket.get('last_landlord_read')
+        query = {'ticket_id': ticket_id, 'sender_role': 'student'}
+        if last_read:
+            query['created_at'] = {'$gt': last_read}
+        count = await db.messages.count_documents(query)
+        if count > 0:
+            result[ticket_id] = count
+
+    return result
 
 @api_router.get("/tickets/{ticket_id}", response_model=TicketResponse)
 async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
@@ -1525,45 +1562,84 @@ async def get_dashboard_stats(property_id: Optional[str] = None, user: dict = De
         'by_category': {c['_id']: c['count'] for c in categories if c['_id']}
     }
 
-# ============ REMINDER SYSTEM ============
+@api_router.post("/tickets/{ticket_id}/send-reminder")
+async def send_ticket_reminder(ticket_id: str, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een herinnering sturen')
 
-@api_router.post("/admin/send-reminders")
-async def send_reminders(background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
+    ticket = await db.tickets.find_one({'id': ticket_id}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket niet gevonden')
+
+    if ticket['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+
+    if ticket.get('status') == 'opgelost':
+        raise HTTPException(status_code=400, detail='Kan geen herinnering sturen voor een opgelost ticket')
+
+    # 24u cooldown check
+    last_reminder = ticket.get('last_reminder_sent')
+    if last_reminder:
+        last_reminder_dt = datetime.fromisoformat(last_reminder)
+        if last_reminder_dt.tzinfo is None:
+            last_reminder_dt = last_reminder_dt.replace(tzinfo=timezone.utc)
+        elapsed = datetime.now(timezone.utc) - last_reminder_dt
+        if elapsed.total_seconds() < 86400:
+            remaining_hours = int((86400 - elapsed.total_seconds()) / 3600)
+            remaining_minutes = int((86400 - elapsed.total_seconds() - remaining_hours * 3600) / 60)
+            raise HTTPException(
+                status_code=429,
+                detail=f'Je hebt al een herinnering gestuurd. Probeer opnieuw over {remaining_hours}u {remaining_minutes}m.'
+            )
+
+    now = datetime.now(timezone.utc).isoformat()
+
+    # Sla reminder timestamp op in ticket
+    await db.tickets.update_one({'id': ticket_id}, {'$set': {'last_reminder_sent': now}})
+
+    # Stuur een systeembericht in de chat van het ticket
+    message_id = str(uuid.uuid4())
+    reminder_message = {
+        'id': message_id,
+        'ticket_id': ticket_id,
+        'sender_id': user['id'],
+        'sender_name': user['name'],
+        'sender_role': 'student',
+        'content': '🔔 Herinnering: Ik wacht nog op een reactie voor dit ticket.',
+        'created_at': now,
+        'is_reminder': True
+    }
+    await db.messages.insert_one(reminder_message)
+
+    # Stuur ook een e-mail naar de verhuurder (werkt zodra Resend API key geconfigureerd is)
+    prop = await db.properties.find_one({'id': ticket.get('property_id')}, {'_id': 0})
+    if prop:
+        landlord = await db.users.find_one({'id': prop['landlord_id']}, {'_id': 0})
+        if landlord:
+            background_tasks.add_task(
+                send_email_notification,
+                landlord['email'],
+                f"Herinnering van huurder - {ticket['ticket_number']}",
+                f"""
+                <h2>Herinnering voor openstaande melding</h2>
+                <p>Huurder <strong>{user['name']}</strong> heeft u een herinnering gestuurd voor het volgende ticket:</p>
+                <p><strong>{ticket['ticket_number']}: {ticket['title']}</strong></p>
+                <p>Status: {ticket.get('status', 'onbekend')}</p>
+                <p>Log in op KotKlusser om dit ticket te bekijken en te beantwoorden.</p>
+                <p>Met vriendelijke groet,<br>KotKlusser Team</p>
+                """
+            )
+
+    return {'message': 'Herinnering verstuurd naar uw verhuurder', 'reminder_message': {k: v for k, v in reminder_message.items() if k != '_id'}}
+
+@api_router.post("/tickets/{ticket_id}/mark-read")
+async def mark_ticket_read(ticket_id: str, user: dict = Depends(get_current_user)):
     if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen herinneringen versturen')
-    
-    # Get landlord's properties
-    landlord_properties = await db.properties.find({'landlord_id': user['id']}, {'_id': 0}).to_list(1000)
-    property_ids = [p['id'] for p in landlord_properties]
-    
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    
-    stale_tickets = await db.tickets.find({
-        'property_id': {'$in': property_ids},
-        'status': {'$nin': ['opgelost']},
-        '$or': [
-            {'last_landlord_response': None},
-            {'last_landlord_response': {'$lt': cutoff}}
-        ]
-    }, {'_id': 0}).to_list(1000)
-    
-    if stale_tickets:
-        background_tasks.add_task(
-            send_email_notification,
-            user['email'],
-            f"Herinnering: {len(stale_tickets)} openstaande meldingen",
-            f"""
-            <h2>Openstaande meldingen</h2>
-            <p>Er zijn {len(stale_tickets)} meldingen die al meer dan 24 uur wachten op een reactie:</p>
-            <ul>
-            {''.join([f"<li>{t['ticket_number']}: {t['title']}</li>" for t in stale_tickets[:10]])}
-            </ul>
-            <p>Log in om deze meldingen te bekijken en op te volgen.</p>
-            <p>Met vriendelijke groet,<br>KotKlusser Team</p>
-            """
-        )
-    
-    return {'message': f'{len(stale_tickets)} herinneringen verstuurd'}
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen tickets als gelezen markeren')
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tickets.update_one({'id': ticket_id}, {'$set': {'last_landlord_read': now}})
+    return {'message': 'Ticket gemarkeerd als gelezen'}
 
 # Health check
 @api_router.get("/")

@@ -8,10 +8,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
-import { 
+import {
   Search, LogOut, User, Clock, Menu, X, Plus, Mail,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle,
-  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Bell, Home, Building2, Users, MapPin, Layers
+  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Home, Building2, Users, MapPin, Layers,
+  BarChart2, Send, Inbox, AlertTriangle, MessageSquare, Settings
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -33,6 +34,37 @@ const statusLabels = {
   opgelost: "Opgelost"
 };
 
+const TILE_DEFINITIONS = {
+  total:       { defaultName: 'Totaal',          color: 'indigo',  Icon: BarChart2 },
+  open:        { defaultName: 'Open',            color: 'blue',    Icon: Clock },
+  urgent:      { defaultName: 'Urgent',          color: 'red',     Icon: Flame },
+  resolved:    { defaultName: 'Opgelost',        color: 'emerald', Icon: CheckCircle },
+  sent:        { defaultName: 'Verstuurd',       color: 'violet',  Icon: Send },
+  received:    { defaultName: 'Ontvangen',       color: 'cyan',    Icon: Inbox },
+  in_progress: { defaultName: 'In Behandeling',  color: 'orange',  Icon: Wrench },
+  high:        { defaultName: 'Hoog',            color: 'amber',   Icon: AlertTriangle },
+  unread:      { defaultName: 'Ongelezen',       color: 'pink',    Icon: MessageSquare },
+};
+
+const TILE_COLORS = {
+  indigo:  { bg: 'bg-indigo-500/20',  text: 'text-indigo-400',  border: 'border-indigo-500' },
+  blue:    { bg: 'bg-blue-500/20',    text: 'text-blue-400',    border: 'border-blue-500' },
+  red:     { bg: 'bg-red-500/20',     text: 'text-red-400',     border: 'border-red-500' },
+  emerald: { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500' },
+  violet:  { bg: 'bg-violet-500/20',  text: 'text-violet-400',  border: 'border-violet-500' },
+  cyan:    { bg: 'bg-cyan-500/20',    text: 'text-cyan-400',    border: 'border-cyan-500' },
+  orange:  { bg: 'bg-orange-500/20',  text: 'text-orange-400',  border: 'border-orange-500' },
+  amber:   { bg: 'bg-amber-500/20',   text: 'text-amber-400',   border: 'border-amber-500' },
+  pink:    { bg: 'bg-pink-500/20',    text: 'text-pink-400',    border: 'border-pink-500' },
+};
+
+const DEFAULT_TILES = [
+  { key: 'total', label: 'Totaal' },
+  { key: 'open', label: 'Open' },
+  { key: 'urgent', label: 'Urgent' },
+  { key: 'resolved', label: 'Opgelost' },
+];
+
 const LandlordDashboard = () => {
   const { user, logout, authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
@@ -42,6 +74,7 @@ const LandlordDashboard = () => {
   const [selectedProperty, setSelectedProperty] = useState(searchParams.get('property') || 'all');
   const [tickets, setTickets] = useState([]);
   const [stats, setStats] = useState(null);
+  const [unreadCounts, setUnreadCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -58,8 +91,23 @@ const LandlordDashboard = () => {
   // Email change requests
   const [pendingEmailRequests, setPendingEmailRequests] = useState([]);
 
+  // Tile config
+  const [activeTileKey, setActiveTileKey] = useState(null);
+  const [tileConfig, setTileConfig] = useState(DEFAULT_TILES);
+  const [showTileModal, setShowTileModal] = useState(false);
+  const [modalTiles, setModalTiles] = useState(DEFAULT_TILES);
+
   useEffect(() => {
     fetchProperties();
+    const loadTileConfig = async () => {
+      try {
+        const res = await authAxios.get('/auth/me');
+        if (res.data.tile_config?.length) {
+          setTileConfig(res.data.tile_config);
+        }
+      } catch {}
+    };
+    loadTileConfig();
   }, []);
 
   useEffect(() => {
@@ -74,6 +122,7 @@ const LandlordDashboard = () => {
     if (properties.length > 0 || selectedProperty === 'all') {
       fetchData();
     }
+    setActiveTileKey(null);
   }, [selectedProperty, statusFilter, categoryFilter, urgencyFilter, properties]);
 
   const fetchProperties = async () => {
@@ -97,12 +146,14 @@ const LandlordDashboard = () => {
       if (urgencyFilter !== 'all') params.append('urgency', urgencyFilter);
       if (selectedProperty !== 'all') params.append('property_id', selectedProperty);
       
-      const [ticketsRes, statsRes] = await Promise.all([
+      const [ticketsRes, statsRes, unreadRes] = await Promise.all([
         authAxios.get(`/tickets?${params.toString()}`),
-        authAxios.get(`/stats/dashboard${selectedProperty !== 'all' ? `?property_id=${selectedProperty}` : ''}`)
+        authAxios.get(`/stats/dashboard${selectedProperty !== 'all' ? `?property_id=${selectedProperty}` : ''}`),
+        authAxios.get('/tickets/unread-counts')
       ]);
       setTickets(ticketsRes.data);
       setStats(statsRes.data);
+      setUnreadCounts(unreadRes.data);
     } catch (error) {
       toast.error("Kon gegevens niet laden");
     } finally {
@@ -114,15 +165,6 @@ const LandlordDashboard = () => {
     logout();
     navigate("/");
     toast.success("U bent uitgelogd");
-  };
-
-  const sendReminders = async () => {
-    try {
-      const response = await authAxios.post('/admin/send-reminders');
-      toast.success(response.data.message);
-    } catch (error) {
-      toast.error("Kon herinneringen niet versturen");
-    }
   };
 
   const submitNewProperty = async () => {
@@ -157,12 +199,51 @@ const LandlordDashboard = () => {
     await submitNewProperty();
   };
 
+  const tileStats = {
+    total: tickets.length,
+    open: tickets.filter(t => t.status !== 'opgelost').length,
+    urgent: tickets.filter(t => t.urgency === 'urgent').length,
+    resolved: tickets.filter(t => t.status === 'opgelost').length,
+    sent: tickets.filter(t => t.status === 'verstuurd').length,
+    received: tickets.filter(t => t.status === 'ontvangen').length,
+    in_progress: tickets.filter(t => t.status === 'in behandeling').length,
+    high: tickets.filter(t => t.urgency === 'hoog').length,
+    unread: tickets.filter(t => (unreadCounts[t.id] || 0) > 0).length,
+  };
+
+  const getTileFilterFn = (key) => {
+    const fns = {
+      total: () => true,
+      open: t => t.status !== 'opgelost',
+      urgent: t => t.urgency === 'urgent',
+      resolved: t => t.status === 'opgelost',
+      sent: t => t.status === 'verstuurd',
+      received: t => t.status === 'ontvangen',
+      in_progress: t => t.status === 'in behandeling',
+      high: t => t.urgency === 'hoog',
+      unread: t => (unreadCounts[t.id] || 0) > 0,
+    };
+    return fns[key] || (() => true);
+  };
+
+  const saveTileConfig = async () => {
+    try {
+      await authAxios.put('/users/tile-config', { tile_config: modalTiles });
+      setTileConfig(modalTiles);
+      setShowTileModal(false);
+      toast.success('Tegels opgeslagen');
+    } catch {
+      toast.error('Kon tegels niet opslaan');
+    }
+  };
+
   const filteredTickets = tickets
     .filter(ticket =>
       ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
       ticket.created_by_name.toLowerCase().includes(searchQuery.toLowerCase())
     )
+    .filter(ticket => activeTileKey ? getTileFilterFn(activeTileKey)(ticket) : true)
     .sort((a, b) => {
       const aResolved = a.status === 'opgelost' ? 1 : 0;
       const bResolved = b.status === 'opgelost' ? 1 : 0;
@@ -276,7 +357,7 @@ const LandlordDashboard = () => {
                         value={newPropertyData.floor_count === "" ? "" : newPropertyData.floor_count}
                         onChange={(e) => setNewPropertyData({ ...newPropertyData, floor_count: e.target.value === "" ? "" : Number(e.target.value) })}
                         placeholder="Bijv. 3"
-                        className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+                        className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
                         data-testid="new-property-floors"
                       />
                     </div>
@@ -464,14 +545,6 @@ const LandlordDashboard = () => {
                     </Button>
                   </Link>
                 )}
-                <Button 
-                  onClick={sendReminders}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                  data-testid="send-reminders-btn"
-                >
-                  <Bell className="w-4 h-4 mr-2" />
-                  Herinneringen
-                </Button>
               </div>
             </div>
 
@@ -514,60 +587,142 @@ const LandlordDashboard = () => {
               </motion.div>
             )}
 
-            {/* Stats cards */}
-            {stats && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4 }}
-                className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+            {/* Stats tiles */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+            >
+              {tileConfig.map(({ key, label }) => {
+                const def = TILE_DEFINITIONS[key];
+                if (!def) return null;
+                const colors = TILE_COLORS[def.color];
+                const isActive = activeTileKey === key;
+                const IconComp = def.Icon;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setActiveTileKey(isActive ? null : key)}
+                    className={`bg-[#161425] rounded-xl p-4 text-left transition-all ${
+                      isActive
+                        ? `border-2 ${colors.border}`
+                        : 'border border-white/5 hover:border-white/10'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center`}>
+                        <IconComp className={`w-5 h-5 ${colors.text}`} />
+                      </div>
+                      <div>
+                        <p className="text-2xl font-bold text-white">{tileStats[key] ?? 0}</p>
+                        <p className="text-sm text-slate-400">{label}</p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+
+              {/* Gear tile */}
+              <button
+                onClick={() => { setModalTiles(tileConfig); setShowTileModal(true); }}
+                className="bg-[#161425] border border-white/10 border-dashed rounded-xl p-4 text-left hover:border-white/20 transition-all"
               >
-                <div className="bg-[#161425] border border-white/5 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-500/20 flex items-center justify-center">
-                      <BarChart3 className="w-5 h-5 text-slate-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.total}</p>
-                      <p className="text-sm text-slate-400">Totaal</p>
-                    </div>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-slate-500/20 flex items-center justify-center">
+                    <Settings className="w-5 h-5 text-slate-400" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-slate-400">Aanpassen</p>
                   </div>
                 </div>
-                <div className="bg-[#161425] border border-white/5 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-indigo-500/20 flex items-center justify-center">
-                      <AlertCircle className="w-5 h-5 text-indigo-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.open}</p>
-                      <p className="text-sm text-slate-400">Open</p>
+              </button>
+            </motion.div>
+
+            {/* Tile personalization modal */}
+            <Dialog open={showTileModal} onOpenChange={setShowTileModal}>
+              <DialogContent className="bg-[#161425] border-white/10 max-w-md max-h-[80vh] flex flex-col overflow-hidden">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Tegels aanpassen</DialogTitle>
+                </DialogHeader>
+                <div className="flex-1 overflow-y-auto px-6 pb-2 space-y-6 py-2">
+                  {/* Active tiles */}
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Actieve tegels</p>
+                    <div className="space-y-2">
+                      {modalTiles.map(({ key, label }, idx) => {
+                        const def = TILE_DEFINITIONS[key];
+                        if (!def) return null;
+                        const colors = TILE_COLORS[def.color];
+                        const IconComp = def.Icon;
+                        return (
+                          <div key={key} className="flex items-center gap-3 bg-[#1C1A2E] rounded-lg px-3 py-2">
+                            <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+                              <IconComp className={`w-4 h-4 ${colors.text}`} />
+                            </div>
+                            <Input
+                              value={label}
+                              onChange={(e) => {
+                                const updated = [...modalTiles];
+                                updated[idx] = { ...updated[idx], label: e.target.value };
+                                setModalTiles(updated);
+                              }}
+                              className="flex-1 h-8 bg-transparent border-white/10 text-white text-sm px-2"
+                            />
+                            <button
+                              onClick={() => setModalTiles(modalTiles.filter((_, i) => i !== idx))}
+                              className="text-slate-500 hover:text-red-400 transition-colors shrink-0"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                      {modalTiles.length === 0 && (
+                        <p className="text-sm text-slate-500 italic">Geen actieve tegels</p>
+                      )}
                     </div>
                   </div>
-                </div>
-                <div className="bg-[#161425] border border-white/5 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-red-500/20 flex items-center justify-center">
-                      <Flame className="w-5 h-5 text-red-400" />
-                    </div>
+
+                  {/* Available tiles */}
+                  {Object.entries(TILE_DEFINITIONS).filter(([key]) => !modalTiles.some(t => t.key === key)).length > 0 && (
                     <div>
-                      <p className="text-2xl font-bold text-white">{stats.urgent}</p>
-                      <p className="text-sm text-slate-400">Urgent</p>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Beschikbare tegels</p>
+                      <div className="space-y-2">
+                        {Object.entries(TILE_DEFINITIONS)
+                          .filter(([key]) => !modalTiles.some(t => t.key === key))
+                          .map(([key, def]) => {
+                            const colors = TILE_COLORS[def.color];
+                            const IconComp = def.Icon;
+                            return (
+                              <div key={key} className="flex items-center gap-3 bg-[#1C1A2E]/50 rounded-lg px-3 py-2">
+                                <div className={`w-8 h-8 rounded-lg ${colors.bg} flex items-center justify-center shrink-0`}>
+                                  <IconComp className={`w-4 h-4 ${colors.text}`} />
+                                </div>
+                                <span className="flex-1 text-sm text-slate-300">{def.defaultName}</span>
+                                <button
+                                  onClick={() => setModalTiles([...modalTiles, { key, label: def.defaultName }])}
+                                  className="text-slate-500 hover:text-indigo-400 transition-colors shrink-0"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                              </div>
+                            );
+                          })}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-                <div className="bg-[#161425] border border-white/5 rounded-xl p-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emerald-500/20 flex items-center justify-center">
-                      <CheckCircle className="w-5 h-5 text-emerald-400" />
-                    </div>
-                    <div>
-                      <p className="text-2xl font-bold text-white">{stats.resolved}</p>
-                      <p className="text-sm text-slate-400">Opgelost</p>
-                    </div>
-                  </div>
-                </div>
-              </motion.div>
-            )}
+                <DialogFooter className="border-t border-white/10 pt-4">
+                  <Button variant="outline" onClick={() => setShowTileModal(false)} className="border-white/10 text-white">
+                    Annuleren
+                  </Button>
+                  <Button onClick={saveTileConfig} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                    Opslaan
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Filters */}
             <motion.div
@@ -650,8 +805,29 @@ const LandlordDashboard = () => {
                 </div>
               ) : (
                 <div className="divide-y divide-white/5">
-                  {filteredTickets.map((ticket, idx) => (
-                    <Link key={ticket.id} to={`/ticket/${ticket.id}`}>
+                  {(() => {
+                    const sortedTickets = [...filteredTickets].sort((a, b) => {
+                      const aResolved = a.status === 'opgelost' ? 1 : 0;
+                      const bResolved = b.status === 'opgelost' ? 1 : 0;
+                      if (aResolved !== bResolved) return aResolved - bResolved;
+                      const aUnread = unreadCounts[a.id] || 0;
+                      const bUnread = unreadCounts[b.id] || 0;
+                      if (bUnread !== aUnread) return bUnread - aUnread;
+                      return new Date(b.created_at) - new Date(a.created_at);
+                    });
+                    return sortedTickets.map((ticket, idx) => (
+                    <Link key={ticket.id} to={`/ticket/${ticket.id}`}
+                      onClick={() => {
+                        if (unreadCounts[ticket.id] > 0) {
+                          authAxios.post(`/tickets/${ticket.id}/mark-read`);
+                          setUnreadCounts(prev => {
+                            const updated = { ...prev };
+                            delete updated[ticket.id];
+                            return updated;
+                          });
+                        }
+                      }}
+                    >
                       <div 
                         className="p-4 hover:bg-white/5 transition-colors group"
                         data-testid={`landlord-ticket-${ticket.id}`}
@@ -699,11 +875,17 @@ const LandlordDashboard = () => {
                               )}
                             </div>
                           </div>
+                          {unreadCounts[ticket.id] > 0 && (
+                            <div className="flex items-center justify-center bg-indigo-600 text-white text-xs font-semibold rounded-full min-w-[20px] h-5 px-1.5 shrink-0">
+                              {unreadCounts[ticket.id]}
+                            </div>
+                          )}
                           <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-indigo-400 group-hover:translate-x-1 transition-all shrink-0" />
                         </div>
                       </div>
                     </Link>
-                  ))}
+                  ));
+                  })()}
                 </div>
               )}
             </motion.div>

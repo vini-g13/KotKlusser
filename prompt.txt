@@ -1,57 +1,28 @@
-Voer de volgende UI-aanpassingen door in het KotKlusser project. Er zijn 4 aparte problemen om op te lossen:
+You are working on KotKlusser. A small visual fix is needed for the "Tegels aanpassen" modal in `frontend/src/pages/LandlordDashboard.jsx`.
 
----
+## PROBLEM
+The tile configuration Dialog/modal is too tall — it fills the entire viewport height, causing the bottom buttons (Annuleren/Opslaan) to be hidden behind the browser taskbar and tab bar when the browser is not in fullscreen mode.
 
-## 1. Consistente icoontjes in de "Nieuw pand toevoegen" dialog — `frontend/src/pages/LandlordDashboard.jsx`
+## FIX
+Find the DialogContent component for the "Tegels aanpassen" modal and apply the following changes:
 
-In de Dialog component met `DialogTitle "Nieuw pand toevoegen"` missen de invoervelden icoontjes. Voeg dezelfde icoontjes toe als in `PropertyOnboarding.jsx`:
-- Veld "Naam van het pand": voeg `Building2` icoon toe (relatief gepositioneerd links in het inputveld, zoals in PropertyOnboarding)
-- Veld "Adres": voeg `MapPin` icoon toe
-- Veld "Aantal verdiepingen": voeg `Layers` icoon toe
-- Importeer `MapPin` en `Layers` bovenaan indien nog niet aanwezig (Building2 is al geïmporteerd)
-- Pas de Input className aan zodat er `pl-10` padding is voor elk icoon, consistent met PropertyOnboarding.jsx
+1. Set a maximum height using `max-h-[80vh]` (not 100vh)
+2. Add `overflow-y-auto` to the scrollable content area inside the modal (the tile lists), NOT to the entire DialogContent
+3. Keep the footer (Annuleren + Opslaan buttons) OUTSIDE the scrollable area so it is always visible at the bottom
+4. Add `overflow-hidden` to the DialogContent itself so it respects rounded corners while scrolling
 
----
+The result should be a modal that:
+- Is never taller than 80% of the visible viewport height
+- Has a scrollable middle section (active tiles + available tiles list)
+- Always shows the footer buttons without scrolling
+- Stays visually centered and does not feel cramped
 
-## 2. Knoptekst aanpassen in de "Nieuw pand toevoegen" dialog — `frontend/src/pages/LandlordDashboard.jsx`
+## EXACT STRUCTURE TO AIM FOR
+DialogContent (max-h-[80vh], flex flex-col, overflow-hidden)
+  └── DialogHeader (static, not scrollable)
+  └── scrollable div (flex-1, overflow-y-auto, px-6, pb-2)
+       └── active tiles section
+       └── available tiles section
+  └── DialogFooter (static, not scrollable, border-t border-white/10, pt-4)
 
-In dezelfde Dialog, in de `DialogFooter`, staat de bevestigingsknop (data-testid="confirm-create-property") met de tekst "Aanmaken". Verander dit naar "Pand aanmaken". Verwijder ook de volledige spinner/loading state uit deze knop — vervang dit:
-```jsx
-{creatingProperty ? (
-  <span>...spinner JSX...</span>
-) : (
-  "Aanmaken"
-)}
-```
-door gewoon:
-```jsx
-Pand aanmaken
-```
-De `disabled={creatingProperty}` mag behouden blijven.
-
----
-
-## 3. Knoptekst en spinner in "Pand bewerken" dialog — `frontend/src/pages/LandlordProfilePage.jsx`
-
-In LandlordProfilePage.jsx staat een knop met de tekst "Opslaan" (met Save icoon) in de header. Deze knop heeft ook een spinner animatie bij het opslaan. Doe het volgende:
-- Verander de knoptekst van "Opslaan" naar "Wijzigingen opslaan"
-- Verwijder de volledige spinner/loading state. Vervang de huidige JSX (met de `animate-spin` div en "Opslaan...") door:
-```jsx
-<>
-  <Save className="w-4 h-4 mr-2" />
-  Wijzigingen opslaan
-</>
-```
-
----
-
-## 4. Spinner verwijderen uit PropertyOnboarding — `frontend/src/pages/PropertyOnboarding.jsx`
-
-In de submit knop (data-testid="create-property-btn") staat een spinner animatie bij het laden. Verwijder de volledige ternary met de `animate-spin` SVG en vervang door:
-```jsx
-<>
-  Pand aanmaken
-  <ArrowRight className="w-4 h-4 ml-2" />
-</>
-```
-De `disabled={loading}` mag behouden blijven.
+Do not change any other part of the dashboard. Only modify the "Tegels aanpassen" DialogContent structure and its internal layout.

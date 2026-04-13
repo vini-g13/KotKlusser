@@ -8,11 +8,11 @@ import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, Image, X,
-  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check
+  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check, Bell
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -49,6 +49,8 @@ const TicketDetail = () => {
   const [updating, setUpdating] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
   const [scheduledDate, setScheduledDate] = useState(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
+  const [showReminderDialog, setShowReminderDialog] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -148,6 +150,45 @@ const TicketDetail = () => {
     } catch (error) {
       toast.error("Kon foto niet uploaden");
     }
+  };
+
+  const handleSendReminder = async () => {
+    setSendingReminder(true);
+    try {
+      const response = await authAxios.post(`/tickets/${id}/send-reminder`);
+      if (response.data.reminder_message) {
+        setMessages(prev => [...prev, response.data.reminder_message]);
+      }
+      toast.success(response.data.message);
+      setShowReminderDialog(false);
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon herinnering niet versturen");
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
+  const getMessageDateLabel = (dateStr) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const dayBefore = new Date(today); dayBefore.setDate(today.getDate() - 2);
+    const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const timeStr = format(date, "HH:mm", { locale: nl });
+
+    if (msgDay.getTime() === today.getTime()) return `Vandaag ${timeStr}`;
+    if (msgDay.getTime() === yesterday.getTime()) return `Gisteren ${timeStr}`;
+    if (msgDay.getTime() === dayBefore.getTime()) return `Eergisteren ${timeStr}`;
+    return format(date, "d MMMM yyyy", { locale: nl });
+  };
+
+  const shouldShowDateSeparator = (messages, index) => {
+    if (index === 0) return true;
+    const current = new Date(messages[index].created_at);
+    const previous = new Date(messages[index - 1].created_at);
+    return current.toDateString() !== previous.toDateString();
   };
 
   if (loading) {
@@ -305,6 +346,52 @@ const TicketDetail = () => {
               </div>
             )}
 
+            {user?.role === 'student' && ticket.status !== 'opgelost' && (
+              <>
+                <div className="border-t border-white/5 pt-6">
+                  <Button
+                    variant="outline"
+                    className="border-white/10 text-white hover:bg-white/5"
+                    onClick={() => setShowReminderDialog(true)}
+                  >
+                    <Bell className="w-4 h-4 mr-2" />
+                    Stuur herinnering naar verhuurder
+                  </Button>
+                  <p className="text-xs text-slate-500 mt-2">
+                    Stuur een herinnering naar uw verhuurder. Maximum 1 per 24 uur per ticket.
+                  </p>
+                </div>
+
+                <Dialog open={showReminderDialog} onOpenChange={setShowReminderDialog}>
+                  <DialogContent className="bg-[#161425] border-white/10">
+                    <DialogHeader>
+                      <DialogTitle className="text-white">Herinnering versturen</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-slate-300 py-2">
+                      Weet u zeker dat u een herinnering wilt sturen naar uw verhuurder voor ticket <strong className="text-white">{ticket.ticket_number}</strong>? Dit verschijnt als bericht in de chat en de verhuurder ontvangt een melding.
+                    </p>
+                    <DialogFooter className="gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowReminderDialog(false)}
+                        className="border-white/10 text-white"
+                      >
+                        Annuleren
+                      </Button>
+                      <Button
+                        onClick={handleSendReminder}
+                        disabled={sendingReminder}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        <Bell className="w-4 h-4 mr-2" />
+                        Versturen
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
+
             {/* Landlord controls */}
             {user?.role === 'landlord' && (
               <div className="border-t border-white/5 pt-6 space-y-4">
@@ -390,25 +477,47 @@ const TicketDetail = () => {
                   <p className="text-sm">Start een gesprek over dit ticket</p>
                 </div>
               ) : (
-                messages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex ${msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
-                  >
+                messages.map((msg, index) => (
+                  <div key={msg.id}>
+                    {shouldShowDateSeparator(messages, index) && (
+                      <div className="flex items-center justify-center gap-3 my-4 px-8">
+                        <div className="h-px bg-white/10 w-16" />
+                        <span className="text-xs text-slate-500 shrink-0">
+                          {getMessageDateLabel(msg.created_at)}
+                        </span>
+                        <div className="h-px bg-white/10 w-16" />
+                      </div>
+                    )}
                     <div
-                      className={`max-w-[80%] p-3 ${msg.sender_role === 'landlord'
-                          ? 'chat-bubble-landlord text-white'
-                          : 'chat-bubble-student text-slate-200'
-                        }`}
-                      data-testid={`message-${msg.id}`}
+                      className={`flex ${msg.is_reminder ? '' : msg.sender_id === user?.id ? 'justify-end' : 'justify-start'}`}
                     >
-                      {msg.sender_id !== user?.id && (
-                        <p className="text-xs opacity-70 mb-1">{msg.sender_name}</p>
+                      {msg.is_reminder ? (
+                        <div className="flex justify-center my-2 w-full">
+                          <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl px-4 py-2 text-center max-w-[75%]">
+                            <p className="text-amber-400 text-sm">{msg.content}</p>
+                            <p className="text-xs text-amber-500/50 mt-1">
+                              {format(new Date(msg.created_at), "HH:mm", { locale: nl })}
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={`max-w-[80%] p-3 rounded-2xl ${
+                            msg.sender_id === user?.id
+                              ? 'bg-indigo-600 text-white rounded-br-sm'
+                              : 'bg-[#2A2840] text-slate-200 rounded-bl-sm'
+                          }`}
+                          data-testid={`message-${msg.id}`}
+                        >
+                          {msg.sender_id !== user?.id && (
+                            <p className="text-xs opacity-70 mb-1">{msg.sender_name}</p>
+                          )}
+                          <p className="text-sm">{msg.content}</p>
+                          <p className="text-xs opacity-50 mt-1 text-right">
+                            {format(new Date(msg.created_at), "HH:mm", { locale: nl })}
+                          </p>
+                        </div>
                       )}
-                      <p className="text-sm">{msg.content}</p>
-                      <p className="text-xs opacity-50 mt-1 text-right">
-                        {format(new Date(msg.created_at), "HH:mm", { locale: nl })}
-                      </p>
                     </div>
                   </div>
                 ))

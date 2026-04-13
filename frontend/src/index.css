@@ -175,16 +175,6 @@ code {
     animation: fadeIn 0.3s ease-out forwards;
 }
 
-/* Chat bubbles */
-.chat-bubble-student {
-    background: #161425;
-    border-radius: 16px 16px 4px 16px;
-}
-
-.chat-bubble-landlord {
-    background: linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%);
-    border-radius: 16px 16px 16px 4px;
-}
 
 /* Noise overlay */
 .noise-overlay::before {
