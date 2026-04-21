@@ -1,17 +1,19 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui/button";
-import { 
-  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, 
+import {
+  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle,
   CheckCircle, MessageSquare, Bell, BarChart3, ArrowRight, Shield
 } from "lucide-react";
 import { motion } from "framer-motion";
+import LandingNav from "../components/LandingNav";
+import LandingFooter from "../components/LandingFooter";
 
 const LandingPage = () => {
   const features = [
     {
       icon: <Wrench className="w-6 h-6" />,
       title: "Eenvoudig Melden",
-      description: "Defecten melden in maximaal 3 klikken met foto-upload"
+      description: "Defecten melden in maximaal 4 klikken (inclusief foto-upload)"
     },
     {
       icon: <CheckCircle className="w-6 h-6" />,
@@ -21,17 +23,17 @@ const LandingPage = () => {
     {
       icon: <MessageSquare className="w-6 h-6" />,
       title: "Directe Communicatie",
-      description: "Chat direct met uw verhuurder binnen elk ticket"
+      description: "Directe communicatie tussen student en verhuurder binnen elke melding"
     },
     {
       icon: <Bell className="w-6 h-6" />,
       title: "Automatische Herinneringen",
-      description: "Nooit meer een melding vergeten dankzij notificaties"
+      description: "Geen reactie op je melding? Stuur een automatische herinnering naar de verhuurder"
     },
     {
       icon: <BarChart3 className="w-6 h-6" />,
       title: "Overzichtelijk Dashboard",
-      description: "Verhuurders hebben volledige controle met filters en statistieken"
+      description: "Behoud volledige controle en overzicht over alle meldingen dankzij filters en statistieken"
     },
     {
       icon: <Shield className="w-6 h-6" />,
@@ -51,30 +53,7 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-[#0B0A14]">
-      {/* Header */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link to="/" className="flex items-center gap-2">
-              <span className="text-2xl font-bold text-white font-['Outfit']">
-                Kot<span className="text-indigo-500">Klusser</span>
-              </span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <Link to="/login">
-                <Button variant="ghost" className="text-slate-300 hover:text-white" data-testid="nav-login-btn">
-                  Inloggen
-                </Button>
-              </Link>
-              <Link to="/register">
-                <Button className="bg-indigo-600 hover:bg-indigo-700 text-white glow-primary" data-testid="nav-register-btn">
-                  Registreren
-                </Button>
-              </Link>
-            </div>
-          </div>
-        </div>
-      </header>
+      <LandingNav />
 
       {/* Hero Section */}
       <section className="relative pt-32 pb-20 px-4 sm:px-6 lg:px-8 overflow-hidden">
@@ -104,7 +83,7 @@ const LandingPage = () => {
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-8 glow-primary group"
                     data-testid="hero-register-btn"
                   >
-                    Nieuw hier? Start nu
+                    Nieuw? Start hier
                     <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </Button>
                 </Link>
@@ -234,7 +213,7 @@ const LandingPage = () => {
                 Klaar om te beginnen?
               </h2>
               <p className="mt-4 text-indigo-100 max-w-lg mx-auto">
-                Registreer nu en begin direct met het efficiënt beheren van defectmeldingen.
+                Registreer nu en begin met het efficiënt maken of beheren van defectmeldingen.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <Link to="/register?role=student">
@@ -253,17 +232,7 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 px-4 sm:px-6 lg:px-8 border-t border-white/5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <span className="text-xl font-bold text-white font-['Outfit']">
-            Kot<span className="text-indigo-500">Klusser</span>
-          </span>
-          <p className="text-slate-400 text-sm">
-            © 2024 KotKlusser. Alle rechten voorbehouden.
-          </p>
-        </div>
-      </footer>
+      <LandingFooter />
     </div>
   );
 };
