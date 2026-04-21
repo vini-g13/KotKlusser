@@ -92,7 +92,7 @@ const RegisterPage = () => {
   const showJoinFields = formData.role === 'student' && formData.join_code && propertyInfo;
 
   return (
-    <div className="min-h-screen bg-[#0B0A14] flex">
+    <div className="h-screen overflow-hidden bg-[#0B0A14] flex">
       {/* Left side - Image */}
       <div className="hidden lg:block lg:w-1/2 relative">
         <div className="absolute inset-0 bg-gradient-to-l from-[#0B0A14] to-transparent z-10" />
@@ -104,23 +104,19 @@ const RegisterPage = () => {
       </div>
 
       {/* Right side - Form */}
-      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24 py-8">
+      <div className="flex-1 flex flex-col justify-start px-4 sm:px-6 lg:px-20 xl:px-24 pt-16 pb-8 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
           className="mx-auto w-full max-w-sm"
         >
-          <Link to="/" className="inline-flex items-center text-slate-400 hover:text-white mb-8 group">
-            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            Terug naar home
-          </Link>
-
-          <div className="mb-8">
-            <Link to="/" className="text-2xl font-bold text-white font-['Outfit']">
+          <Link to="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 group">
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-xl font-bold text-white font-['Outfit']">
               Kot<span className="text-indigo-500">Klusser</span>
-            </Link>
-          </div>
+            </span>
+          </Link>
 
           <h1 className="text-3xl font-bold text-white font-['Outfit'] mb-2">
             Account aanmaken

@@ -34,30 +34,26 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0A14] flex">
+    <div className="h-screen overflow-hidden bg-[#0B0A14] flex">
       {/* Left side - Form */}
-      <div className="flex-1 flex flex-col justify-center px-4 sm:px-6 lg:px-20 xl:px-24">
+      <div className="flex flex-col justify-center overflow-y-auto pt-16 py-8 px-4 sm:px-6 lg:px-20 xl:px-24">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5 }}
           className="mx-auto w-full max-w-sm"
         >
-          <Link to="/" className="inline-flex items-center text-slate-400 hover:text-white mb-8 group">
-            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            Terug naar home
-          </Link>
-
-          <div className="mb-8">
-            <Link to="/" className="text-2xl font-bold text-white font-['Outfit']">
+          <Link to="/" className="inline-flex items-center gap-2 text-slate-400 hover:text-white mb-8 group">
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-xl font-bold text-white font-['Outfit']">
               Kot<span className="text-indigo-500">Klusser</span>
-            </Link>
-          </div>
+            </span>
+          </Link>
 
           <h1 className="text-3xl font-bold text-white font-['Outfit'] mb-2">
             Welkom terug
           </h1>
-          <p className="text-slate-400 mb-8">
+          <p className="text-slate-400 mb-6">
             Log in om uw meldingen te bekijken
           </p>
 
@@ -123,7 +119,7 @@ const LoginPage = () => {
             </Button>
           </form>
 
-          <p className="mt-8 text-center text-slate-400">
+          <p className="mt-6 text-center text-slate-400">
             Nog geen account?{" "}
             <Link to="/register" className="text-indigo-400 hover:text-indigo-300 font-medium">
               Registreer hier

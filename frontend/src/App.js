@@ -20,6 +20,9 @@ import ProfilePage from "./pages/ProfilePage";
 import LandlordProfilePage from "./pages/LandlordProfilePage";
 import EmailChangeApproval from "./pages/EmailChangeApproval";
 import ConfirmEmail from "./pages/ConfirmEmail";
+import OverOnsPage from "./pages/OverOnsPage";
+import ContactPage from "./pages/ContactPage";
+import DemoPage from "./pages/DemoPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -228,6 +231,9 @@ function AppRoutes() {
         <Route path="/bevestig-email/:token" element={
           <PageWrapper><ConfirmEmail /></PageWrapper>
         } />
+        <Route path="/over-ons" element={<PageWrapper><OverOnsPage /></PageWrapper>} />
+        <Route path="/contact" element={<PageWrapper><ContactPage /></PageWrapper>} />
+        <Route path="/demo" element={<PageWrapper><DemoPage /></PageWrapper>} />
       </Routes>
     </AnimatePresence>
   );

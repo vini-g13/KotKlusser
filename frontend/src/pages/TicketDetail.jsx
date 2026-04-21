@@ -71,6 +71,13 @@ const TicketDetail = () => {
       if (ticketRes.data.scheduled_date) {
         setScheduledDate(new Date(ticketRes.data.scheduled_date));
       }
+      if (user?.role === 'student') {
+        try {
+          await authAxios.post(`/tickets/${id}/mark-read-student`);
+        } catch (err) {
+          console.error('Mark read error:', err);
+        }
+      }
     } catch (error) {
       toast.error("Kon ticket niet laden");
       navigate(user?.role === 'landlord' ? '/verhuurder' : '/dashboard');

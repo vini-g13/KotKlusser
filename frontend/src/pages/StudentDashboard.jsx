@@ -39,6 +39,7 @@ const StudentDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
+  const [studentUnread, setStudentUnread] = useState({});
   
   // Join property dialog
   const [showJoinDialog, setShowJoinDialog] = useState(false);
@@ -54,10 +55,20 @@ const StudentDashboard = () => {
     fetchTickets();
   }, []);
 
+  const fetchUnreadCounts = async () => {
+    try {
+      const res = await authAxios.get('/tickets/unread-counts-student');
+      setStudentUnread(res.data);
+    } catch (err) {
+      console.error('Unread counts error:', err);
+    }
+  };
+
   const fetchTickets = async () => {
     try {
       const response = await authAxios.get("/tickets");
       setTickets(response.data);
+      await fetchUnreadCounts();
     } catch (error) {
       toast.error("Kon meldingen niet laden");
     } finally {
@@ -114,7 +125,14 @@ const StudentDashboard = () => {
       const aResolved = a.status === 'opgelost' ? 1 : 0;
       const bResolved = b.status === 'opgelost' ? 1 : 0;
       if (aResolved !== bResolved) return aResolved - bResolved;
-      return 0;
+
+      const aUnread = studentUnread[a.id];
+      const bUnread = studentUnread[b.id];
+      const aHasNotif = aUnread ? (aUnread.chat_count > 0 || aUnread.has_update) : false;
+      const bHasNotif = bUnread ? (bUnread.chat_count > 0 || bUnread.has_update) : false;
+      if (aHasNotif !== bHasNotif) return aHasNotif ? -1 : 1;
+
+      return new Date(b.created_at) - new Date(a.created_at);
     });
 
   const openTickets = tickets.filter(t => t.status !== 'opgelost').length;
@@ -420,6 +438,25 @@ const StudentDashboard = () => {
                           </div>
                         </div>
                         <div className="flex flex-col items-end gap-2">
+                          {(() => {
+                            const unread = studentUnread[ticket.id];
+                            if (!unread) return null;
+                            if (unread.chat_count > 0) {
+                              return (
+                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-500 text-white text-xs font-bold">
+                                  {unread.chat_count}
+                                </span>
+                              );
+                            }
+                            if (unread.has_update) {
+                              return (
+                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-amber-500 text-white text-xs font-bold">
+                                  !
+                                </span>
+                              );
+                            }
+                            return null;
+                          })()}
                           <Badge className={`status-${ticket.status} text-xs`}>
                             {statusLabels[ticket.status]}
                           </Badge>
