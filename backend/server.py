@@ -1272,7 +1272,8 @@ async def create_ticket(
         'created_at': now,
         'updated_at': now,
         'last_landlord_response': None,
-        'last_reminder_sent': None
+        'last_reminder_sent': None,
+        'last_student_read': None
     }
     await db.tickets.insert_one(ticket_doc)
     
@@ -1352,6 +1353,52 @@ async def get_unread_counts(user: dict = Depends(get_current_user)):
 
     return result
 
+@api_router.get("/tickets/unread-counts-student")
+async def get_unread_counts_student(user: dict = Depends(get_current_user)):
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen ongelezen berichten opvragen')
+
+    tickets = await db.tickets.find(
+        {'created_by': user['id']},
+        {'_id': 0, 'id': 1, 'last_student_read': 1, 'last_status_change': 1}
+    ).to_list(1000)
+
+    result = {}
+    for ticket in tickets:
+        ticket_id = ticket['id']
+        last_read = ticket.get('last_student_read')
+
+        query = {'ticket_id': ticket_id, 'sender_role': 'landlord'}
+        if last_read:
+            query['created_at'] = {'$gt': last_read}
+        chat_count = await db.messages.count_documents(query)
+
+        last_status_change = ticket.get('last_status_change')
+        has_update = bool(
+            last_status_change and last_read and last_status_change > last_read
+        )
+
+        if chat_count > 0 or has_update:
+            result[ticket_id] = {'chat_count': chat_count, 'has_update': has_update}
+
+    return result
+
+@api_router.post("/tickets/{ticket_id}/mark-read-student")
+async def mark_ticket_read_student(ticket_id: str, user: dict = Depends(get_current_user)):
+    if user['role'] != 'student':
+        raise HTTPException(status_code=403, detail='Alleen studenten kunnen tickets als gelezen markeren')
+
+    ticket = await db.tickets.find_one({'id': ticket_id}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket niet gevonden')
+
+    if ticket['created_by'] != user['id']:
+        raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tickets.update_one({'id': ticket_id}, {'$set': {'last_student_read': now}})
+    return {'message': 'Gelezen'}
+
 @api_router.get("/tickets/{ticket_id}", response_model=TicketResponse)
 async def get_ticket(ticket_id: str, user: dict = Depends(get_current_user)):
     ticket = await db.tickets.find_one({'id': ticket_id}, {'_id': 0, 'last_landlord_response': 0})
@@ -1396,7 +1443,9 @@ async def update_ticket(
         update_data['scheduled_date'] = update.scheduled_date
     if update.notes is not None:
         update_data['notes'] = update.notes
-    
+    if update.status or update.scheduled_date:
+        update_data['last_status_change'] = datetime.now(timezone.utc).isoformat()
+
     await db.tickets.update_one({'id': ticket_id}, {'$set': update_data})
     
     student = await db.users.find_one({'id': ticket['created_by']}, {'_id': 0})
