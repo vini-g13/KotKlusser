@@ -5,6 +5,9 @@ import axios from "axios";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
+// Components
+import SessionExpiredScreen from "./components/SessionExpiredScreen";
+
 // Pages
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
@@ -34,30 +37,32 @@ export const useAuth = () => useContext(AuthContext);
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token"));
+  const [token, setToken] = useState(null); // access token in memory only
   const [loading, setLoading] = useState(true);
+  const [sessionExpired, setSessionExpired] = useState(false);
 
   useEffect(() => {
     const initAuth = async () => {
-      if (token) {
+      const storedRefreshToken = localStorage.getItem('refresh_token');
+      if (storedRefreshToken) {
         try {
-          const response = await axios.get(`${API}/auth/me`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setUser(response.data);
+          const response = await axios.post(`${API}/auth/refresh`, { refresh_token: storedRefreshToken });
+          setToken(response.data.token);
+          setUser(response.data.user);
         } catch (e) {
-          localStorage.removeItem("token");
+          localStorage.removeItem('refresh_token');
           setToken(null);
+          setUser(null);
         }
       }
       setLoading(false);
     };
     initAuth();
-  }, [token]);
+  }, []);
 
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
-    localStorage.setItem("token", response.data.token);
+    localStorage.setItem('refresh_token', response.data.refresh_token);
     setToken(response.data.token);
     setUser(response.data.user);
     return response.data.user;
@@ -65,17 +70,51 @@ const AuthProvider = ({ children }) => {
 
   const register = async (data) => {
     const response = await axios.post(`${API}/auth/register`, data);
-    localStorage.setItem("token", response.data.token);
+    if (response.data.refresh_token) {
+      localStorage.setItem('refresh_token', response.data.refresh_token);
+    }
     setToken(response.data.token);
     setUser(response.data.user);
     return response.data.user;
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
+  const logout = async () => {
+    const storedRefreshToken = localStorage.getItem('refresh_token');
+    if (storedRefreshToken) {
+      try {
+        await axios.post(`${API}/auth/logout`, { refresh_token: storedRefreshToken });
+      } catch (e) {
+        // ignore errors on logout
+      }
+    }
+    localStorage.removeItem('refresh_token');
     setToken(null);
     setUser(null);
   };
+
+  const refreshAccessToken = async () => {
+    const storedRefreshToken = localStorage.getItem('refresh_token');
+    if (!storedRefreshToken) {
+      setUser(null);
+      setToken(null);
+      setSessionExpired(true);
+      return null;
+    }
+    try {
+      const response = await axios.post(`${API}/auth/refresh`, { refresh_token: storedRefreshToken });
+      setToken(response.data.token);
+      setUser(response.data.user);
+      return response.data.token;
+    } catch (e) {
+      localStorage.removeItem('refresh_token');
+      setUser(null);
+      setToken(null);
+      setSessionExpired(true);
+      return null;
+    }
+  };
+
+  const clearSessionExpired = () => setSessionExpired(false);
 
   const refreshUser = async () => {
     if (token) {
@@ -97,8 +136,23 @@ const AuthProvider = ({ children }) => {
     headers: token ? { Authorization: `Bearer ${token}` } : {}
   });
 
+  authAxios.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      if (error.response?.status === 401 && !error.config._retry) {
+        error.config._retry = true;
+        const newToken = await refreshAccessToken();
+        if (newToken) {
+          error.config.headers['Authorization'] = `Bearer ${newToken}`;
+          return axios(error.config);
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
+
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout, refreshUser, authAxios }}>
+    <AuthContext.Provider value={{ user, token, loading, sessionExpired, login, register, logout, refreshUser, refreshAccessToken, clearSessionExpired, authAxios }}>
       {children}
     </AuthContext.Provider>
   );
@@ -239,13 +293,20 @@ function AppRoutes() {
   );
 }
 
+function SessionExpiredOverlay() {
+  const { sessionExpired } = useAuth();
+  if (!sessionExpired) return null;
+  return <SessionExpiredScreen />;
+}
+
 function App() {
   return (
     <div className="noise-overlay">
       <AuthProvider>
         <BrowserRouter>
           <AppRoutes />
-          <Toaster 
+          <SessionExpiredOverlay />
+          <Toaster
             position="bottom-right" 
             toastOptions={{
               style: {

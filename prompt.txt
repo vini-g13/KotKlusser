@@ -1,89 +1,80 @@
-Read the file /backend/server.py carefully before making any changes.
+Read the following files carefully before making any changes:
+- /frontend/src/context/AuthContext.js (or AuthContext.jsx — check which exists)
+- /frontend/src/pages/Login.jsx (or wherever the login form is handled)
+- /frontend/src/App.js
 
 ## Goal
-Implement a secure refresh token system with sliding expiry, replacing the current single-token authentication.
+Update the frontend to work with the new refresh token system. The access token stays in React memory (never in localStorage). The refresh token is received from the backend and stored in localStorage (since httpOnly cookies require additional backend CORS setup). Build automatic token renewal and a session-expired screen.
 
-## Changes to server.py
+## Change 1 — AuthContext
 
-### 1. New imports and constants (add near the top with other imports/constants)
-```python
-from datetime import datetime, timedelta
-import secrets
+Find the AuthContext file. Currently it stores a single token. Update it to:
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
-REFRESH_TOKEN_EXPIRE_DAYS_STUDENT = 60
-REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD = 30
-MAX_SESSIONS_PER_USER = 3
+1. State:
+   - `user` — user object (keep existing)
+   - `token` — access token in memory only (keep existing, do NOT store in localStorage)
+   - `refreshToken` — stored in localStorage as 'refresh_token'
+
+2. On app load (useEffect):
+   - Read 'refresh_token' from localStorage
+   - If it exists, call POST /auth/refresh with { refresh_token } 
+   - If successful: set token and user from response, continue normally
+   - If failed (401): clear localStorage, set user/token to null (session expired)
+
+3. Update the login function:
+   - After successful login, save response.refresh_token to localStorage as 'refresh_token'
+   - Set token (access token) in memory state only
+
+4. Update the logout function:
+   - Call POST /auth/logout with { refresh_token: localStorage.getItem('refresh_token') }
+   - Clear localStorage ('refresh_token')
+   - Set user and token to null
+
+5. Add a new function: refreshAccessToken()
+   - Reads refresh_token from localStorage
+   - Calls POST /auth/refresh
+   - If successful: updates token in state, returns new token
+   - If failed: clears localStorage, sets user/token to null, sets a new state variable `sessionExpired` to true
+
+6. Add `sessionExpired` to context state (default false) and expose it + a `clearSessionExpired` function (sets it back to false)
+
+## Change 2 — API calls (axios or fetch interceptor)
+
+Find where API calls are made. If there is an axios instance or a central api.js file, add a response interceptor there. If not, create /frontend/src/utils/api.js:
+
+```javascript
+// Intercept 401 responses
+// On 401: call refreshAccessToken() from AuthContext
+// If refresh succeeds: retry the original request with new token
+// If refresh fails: do nothing (AuthContext already sets sessionExpired = true)
 ```
 
-### 2. New MongoDB collection
-Add a reference to a new collection after the existing collection references:
-```python
-db.refresh_tokens  # for session management
-```
+The interceptor needs access to AuthContext. Use a pattern where the axios instance is initialized with a setTokenRef or similar — look at how token is currently passed to API calls and follow the same pattern.
 
-### 3. New helper functions (add after existing token helpers)
+## Change 3 — SessionExpiredScreen component
 
-#### create_refresh_token()
-```python
-def create_refresh_token(user_id: str, role: str) -> str:
-    token = secrets.token_urlsafe(64)
-    expire_days = REFRESH_TOKEN_EXPIRE_DAYS_STUDENT if role == 'student' else REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD
-    expires_at = datetime.utcnow() + timedelta(days=expire_days)
-    return token, expires_at
-```
+Create /frontend/src/components/SessionExpiredScreen.jsx:
 
-#### store_refresh_token()
-Async function that:
-1. Counts existing sessions for this user_id in db.refresh_tokens
-2. If count >= MAX_SESSIONS_PER_USER (3), delete the oldest session (sort by created_at ascending, delete first)
-3. Inserts new document: { user_id, token, role, expires_at, created_at: datetime.utcnow() }
+- Full screen overlay (fixed, z-50, dark background matching the app's dark theme)
+- Centered card with:
+  - Icon: a lock or shield icon from lucide-react
+  - Title: "Sessie verlopen" (bold, white)
+  - Subtitle: "Je bent te lang inactief geweest. Log opnieuw in om verder te gaan." (gray text)
+  - Button: "Terug naar login" with a CornerDownLeft icon from lucide-react (icon on the right side of the text)
+  - Button style: match the existing primary button style of the app (check Login.jsx or other pages for the exact Tailwind classes used on primary buttons)
+- On button click:
+  1. Call clearSessionExpired() from AuthContext
+  2. Navigate to /login using useNavigate()
 
-#### verify_refresh_token()
-Async function that:
-1. Finds document in db.refresh_tokens where token matches AND expires_at > datetime.utcnow()
-2. If not found: return None
-3. If found: apply sliding expiry — update expires_at to datetime.utcnow() + timedelta(days=expire_days based on role)
-4. Return the document
+## Change 4 — Mount SessionExpiredScreen in App.js
 
-### 4. Update the /auth/login endpoint (currently at line 425)
-After creating the access token on line 444, also:
-1. Create a refresh token using create_refresh_token(user['id'], user['role'])
-2. Call store_refresh_token() to save it
-3. Add 'refresh_token' to the return dict alongside 'token' and 'user'
-
-The return dict should become:
-```python
-return {
-    'token': token,
-    'refresh_token': refresh_token,
-    'user': { ...existing user fields... }
-}
-```
-
-### 5. New endpoint: POST /auth/refresh
-Add this BEFORE any parameterized routes. It should:
-1. Accept JSON body with { "refresh_token": string }
-2. Call verify_refresh_token() — if None, raise HTTPException(status_code=401, detail='Ongeldige of verlopen sessie')
-3. Fetch the user from db.users by user_id from the token document
-4. Create a new access token: create_token(user['id'], user['role'])
-5. Return { 'token': new_access_token, 'user': { ...same fields as login... } }
-
-### 6. New endpoint: POST /auth/logout
-Add after /auth/refresh. It should:
-1. Accept JSON body with { "refresh_token": string }
-2. Delete the matching document from db.refresh_tokens
-3. Return { 'message': 'Uitgelogd' }
-
-### 7. Create MongoDB index (add in startup or after collection references)
-```python
-await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
-```
-This auto-deletes expired tokens from MongoDB.
+In App.js, import AuthContext and SessionExpiredScreen.
+Add this logic: if sessionExpired === true, render <SessionExpiredScreen /> on top of everything (as an overlay, not replacing the current route).
 
 ## Important rules
-- Do NOT change any existing endpoints other than /auth/login
-- Do NOT change the create_token() function or JWT structure
-- Keep all existing imports
-- Maintain FastAPI route ordering: specific routes before parameterized routes
-- All status values remain lowercase
+- Do NOT change any page components (LandlordDashboard, StudentDashboard, etc.)
+- Do NOT change routing structure
+- Keep all existing Tailwind classes and styling patterns
+- Follow the exact same code style already present in AuthContext
+- If AuthContext is a .js file keep it .js, do not rename to .jsx
+- The refresh endpoint is POST /auth/refresh and logout is POST /auth/logout on the same base URL as other API calls
