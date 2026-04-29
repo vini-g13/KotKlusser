@@ -1,111 +1,89 @@
-Read the following files carefully before making any changes:
-- /backend/server.py (find RESEND_API_KEY, SENDER_EMAIL, MONGO_URL, DB_NAME config at the top)
+Read the file /backend/server.py carefully before making any changes.
 
 ## Goal
-Create a standalone Python script that Railway will run as a cron job every hour. The script connects directly to MongoDB, finds demo signups where the follow-up email has not been sent yet and the scheduled time has passed, sends the follow-up email via Resend, and marks them as sent.
+Implement a secure refresh token system with sliding expiry, replacing the current single-token authentication.
 
----
+## Changes to server.py
 
-## CREATE NEW FILE: /backend/cron_followup.py
+### 1. New imports and constants (add near the top with other imports/constants)
+```python
+from datetime import datetime, timedelta
+import secrets
 
-Create this file with the following content:
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS_STUDENT = 60
+REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD = 30
+MAX_SESSIONS_PER_USER = 3
+```
 
-import asyncio
-import os
-import logging
-from datetime import datetime, timezone
-from motor.motor_asyncio import AsyncIOMotorClient
-from dotenv import load_dotenv
-from pathlib import Path
+### 2. New MongoDB collection
+Add a reference to a new collection after the existing collection references:
+```python
+db.refresh_tokens  # for session management
+```
 
-ROOT_DIR = Path(__file__).parent
-load_dotenv(ROOT_DIR / '.env')
+### 3. New helper functions (add after existing token helpers)
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+#### create_refresh_token()
+```python
+def create_refresh_token(user_id: str, role: str) -> str:
+    token = secrets.token_urlsafe(64)
+    expire_days = REFRESH_TOKEN_EXPIRE_DAYS_STUDENT if role == 'student' else REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD
+    expires_at = datetime.utcnow() + timedelta(days=expire_days)
+    return token, expires_at
+```
 
-MONGO_URL = os.environ['MONGO_URL']
-DB_NAME = os.environ['DB_NAME']
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'contact@kotklusser.be')
+#### store_refresh_token()
+Async function that:
+1. Counts existing sessions for this user_id in db.refresh_tokens
+2. If count >= MAX_SESSIONS_PER_USER (3), delete the oldest session (sort by created_at ascending, delete first)
+3. Inserts new document: { user_id, token, role, expires_at, created_at: datetime.utcnow() }
 
-async def send_followup_emails():
-    if not RESEND_API_KEY:
-        logger.warning("RESEND_API_KEY not configured, skipping follow-up emails")
-        return
+#### verify_refresh_token()
+Async function that:
+1. Finds document in db.refresh_tokens where token matches AND expires_at > datetime.utcnow()
+2. If not found: return None
+3. If found: apply sliding expiry — update expires_at to datetime.utcnow() + timedelta(days=expire_days based on role)
+4. Return the document
 
-    client = AsyncIOMotorClient(MONGO_URL)
-    db = client[DB_NAME]
+### 4. Update the /auth/login endpoint (currently at line 425)
+After creating the access token on line 444, also:
+1. Create a refresh token using create_refresh_token(user['id'], user['role'])
+2. Call store_refresh_token() to save it
+3. Add 'refresh_token' to the return dict alongside 'token' and 'user'
 
-    try:
-        now = datetime.now(timezone.utc)
-        pending = await db.contact_submissions.find({
-            "type": "demo_signup",
-            "follow_up_sent": False,
-            "follow_up_scheduled_at": {"$lte": now.isoformat()}
-        }).to_list(1000)
+The return dict should become:
+```python
+return {
+    'token': token,
+    'refresh_token': refresh_token,
+    'user': { ...existing user fields... }
+}
+```
 
-        logger.info(f"Found {len(pending)} pending follow-up emails")
+### 5. New endpoint: POST /auth/refresh
+Add this BEFORE any parameterized routes. It should:
+1. Accept JSON body with { "refresh_token": string }
+2. Call verify_refresh_token() — if None, raise HTTPException(status_code=401, detail='Ongeldige of verlopen sessie')
+3. Fetch the user from db.users by user_id from the token document
+4. Create a new access token: create_token(user['id'], user['role'])
+5. Return { 'token': new_access_token, 'user': { ...same fields as login... } }
 
-        for signup in pending:
-            html_content = f"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
-                <div style="background-color: #6366F1; padding: 24px; border-radius: 8px 8px 0 0;">
-                    <h1 style="color: white; margin: 0; font-size: 24px;">Kot<span style="color: #c7d2fe;">Klusser</span></h1>
-                </div>
-                <div style="background-color: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
-                    <p>Beste {signup['name']},</p>
-                    <p>Enkele dagen geleden toonde je interesse in KotKlusser, het platform waarmee verhuurders en studenten onderhoudsproblemen snel en gestructureerd kunnen oplossen.</p>
-                    <p>We wilden even checken of je nog vragen hebt, of gewoon eens een kijkje wil nemen in het platform. Laat het ons weten via de website.</p>
-                    <p style="text-align: center; margin: 32px 0;">
-                        <a href="https://kotklusser.be" style="background-color: #6366F1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
-                            👉 Ontdek KotKlusser verder
-                        </a>
-                    </p>
-                    <p>Heb je vragen of wil je een persoonlijke demo? Antwoord gewoon op deze mail, we helpen je graag verder.</p>
-                    <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
-                    <p style="margin: 0;">Met vriendelijke groeten</p>
-                    <p style="margin: 4px 0;"><strong>Team KotKlusser</strong></p>
-                    <a href="https://kotklusser.be" style="color: #6366F1;">kotklusser.be</a>
-                </div>
-            </div>
-            """
+### 6. New endpoint: POST /auth/logout
+Add after /auth/refresh. It should:
+1. Accept JSON body with { "refresh_token": string }
+2. Delete the matching document from db.refresh_tokens
+3. Return { 'message': 'Uitgelogd' }
 
-            try:
-                import resend
-                resend.api_key = RESEND_API_KEY
-                params = {
-                    "from": SENDER_EMAIL,
-                    "to": [signup['email']],
-                    "subject": "Nog even over KotKlusser 👋",
-                    "html": html_content
-                }
-                import threading
-                resend.Emails.send(params)
+### 7. Create MongoDB index (add in startup or after collection references)
+```python
+await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
+```
+This auto-deletes expired tokens from MongoDB.
 
-                await db.contact_submissions.update_one(
-                    {"id": signup['id']},
-                    {"$set": {
-                        "follow_up_sent": True,
-                        "follow_up_sent_at": now.isoformat()
-                    }}
-                )
-                logger.info(f"Follow-up email sent to {signup['email']}")
-
-            except Exception as e:
-                logger.error(f"Failed to send follow-up to {signup['email']}: {e}")
-
-    finally:
-        client.close()
-
-if __name__ == "__main__":
-    asyncio.run(send_followup_emails())
-
----
-
-## IMPORTANT NOTES
-- Do NOT modify server.py
-- This is a completely standalone script — it manages its own MongoDB connection
-- It only sends to documents where follow_up_sent is False AND follow_up_scheduled_at has passed
-- Duplicate emails are impossible because follow_up_sent is set to True immediately after sending
-- The script exits automatically after running — Railway cron will restart it every hour
+## Important rules
+- Do NOT change any existing endpoints other than /auth/login
+- Do NOT change the create_token() function or JWT structure
+- Keep all existing imports
+- Maintain FastAPI route ordering: specific routes before parameterized routes
+- All status values remain lowercase

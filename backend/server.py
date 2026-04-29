@@ -12,6 +12,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field, EmailStr
 from typing import List, Optional
 import uuid
+import secrets
 from datetime import datetime, timezone, timedelta
 import jwt
 import bcrypt
@@ -29,6 +30,12 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'kotmelding-secret-key-2024')
 JWT_ALGORITHM = 'HS256'
 JWT_EXPIRATION_HOURS = 24
+
+# Refresh token config
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS_STUDENT = 60
+REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD = 30
+MAX_SESSIONS_PER_USER = 3
 
 # Resend Config
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
@@ -230,6 +237,44 @@ def create_token(user_id: str, role: str) -> str:
         'exp': datetime.now(timezone.utc) + timedelta(hours=JWT_EXPIRATION_HOURS)
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def create_refresh_token(user_id: str, role: str):
+    token = secrets.token_urlsafe(64)
+    expire_days = REFRESH_TOKEN_EXPIRE_DAYS_STUDENT if role == 'student' else REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD
+    expires_at = datetime.utcnow() + timedelta(days=expire_days)
+    return token, expires_at
+
+async def store_refresh_token(user_id: str, token: str, role: str, expires_at: datetime):
+    count = await db.refresh_tokens.count_documents({'user_id': user_id})
+    if count >= MAX_SESSIONS_PER_USER:
+        oldest = await db.refresh_tokens.find_one(
+            {'user_id': user_id},
+            sort=[('created_at', 1)]
+        )
+        if oldest:
+            await db.refresh_tokens.delete_one({'_id': oldest['_id']})
+    await db.refresh_tokens.insert_one({
+        'user_id': user_id,
+        'token': token,
+        'role': role,
+        'expires_at': expires_at,
+        'created_at': datetime.utcnow()
+    })
+
+async def verify_refresh_token(token: str):
+    doc = await db.refresh_tokens.find_one({
+        'token': token,
+        'expires_at': {'$gt': datetime.utcnow()}
+    })
+    if not doc:
+        return None
+    expire_days = REFRESH_TOKEN_EXPIRE_DAYS_STUDENT if doc['role'] == 'student' else REFRESH_TOKEN_EXPIRE_DAYS_LANDLORD
+    new_expires_at = datetime.utcnow() + timedelta(days=expire_days)
+    await db.refresh_tokens.update_one(
+        {'_id': doc['_id']},
+        {'$set': {'expires_at': new_expires_at}}
+    )
+    return doc
 
 def generate_join_code() -> str:
     """Generate a 6-character alphanumeric join code"""
@@ -442,8 +487,11 @@ async def login(credentials: UserLogin):
         has_property = prop_count > 0
     
     token = create_token(user['id'], user['role'])
+    refresh_token, refresh_expires_at = create_refresh_token(user['id'], user['role'])
+    await store_refresh_token(user['id'], refresh_token, user['role'], refresh_expires_at)
     return {
         'token': token,
+        'refresh_token': refresh_token,
         'user': {
             'id': user['id'],
             'email': user['email'],
@@ -458,6 +506,52 @@ async def login(credentials: UserLogin):
             'created_at': user['created_at']
         }
     }
+
+@api_router.post("/auth/refresh")
+async def refresh_access_token(body: dict):
+    token = body.get('refresh_token', '')
+    token_doc = await verify_refresh_token(token)
+    if not token_doc:
+        raise HTTPException(status_code=401, detail='Ongeldige of verlopen sessie')
+
+    user = await db.users.find_one({'id': token_doc['user_id']}, {'_id': 0})
+    if not user:
+        raise HTTPException(status_code=401, detail='Gebruiker niet gevonden')
+
+    property_name = None
+    if user.get('property_id'):
+        prop = await db.properties.find_one({'id': user['property_id']}, {'_id': 0})
+        if prop:
+            property_name = prop['name']
+
+    has_property = False
+    if user['role'] == 'landlord':
+        prop_count = await db.properties.count_documents({'landlord_id': user['id']})
+        has_property = prop_count > 0
+
+    new_token = create_token(user['id'], user['role'])
+    return {
+        'token': new_token,
+        'user': {
+            'id': user['id'],
+            'email': user['email'],
+            'name': user['name'],
+            'role': user['role'],
+            'phone': user.get('phone'),
+            'property_id': user.get('property_id'),
+            'property_name': property_name,
+            'room_number': user.get('room_number'),
+            'floor': user.get('floor'),
+            'has_property': has_property,
+            'created_at': user['created_at']
+        }
+    }
+
+@api_router.post("/auth/logout")
+async def logout(body: dict):
+    token = body.get('refresh_token', '')
+    await db.refresh_tokens.delete_one({'token': token})
+    return {'message': 'Uitgelogd'}
 
 @api_router.get("/auth/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
@@ -1834,6 +1928,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_db_client():
+    await db.refresh_tokens.create_index("expires_at", expireAfterSeconds=0)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
