@@ -159,6 +159,17 @@ class EmailChangeRequestResponse(BaseModel):
     processed_by: Optional[str] = None
     rejection_reason: Optional[str] = None
 
+class ContactFormSubmission(BaseModel):
+    name: str
+    company: Optional[str] = None
+    email: EmailStr
+    phone: Optional[str] = None
+    message: str
+
+class DemoSignupSubmission(BaseModel):
+    name: str
+    email: EmailStr
+
 class TicketCreate(BaseModel):
     title: str
     description: str
@@ -1689,6 +1700,64 @@ async def mark_ticket_read(ticket_id: str, user: dict = Depends(get_current_user
     now = datetime.now(timezone.utc).isoformat()
     await db.tickets.update_one({'id': ticket_id}, {'$set': {'last_landlord_read': now}})
     return {'message': 'Ticket gemarkeerd als gelezen'}
+
+@api_router.post("/contact")
+async def submit_contact_form(submission: ContactFormSubmission, background_tasks: BackgroundTasks):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "type": "contact",
+        "name": submission.name,
+        "company": submission.company,
+        "email": submission.email,
+        "phone": submission.phone,
+        "message": submission.message,
+        "created_at": now
+    }
+    await db.contact_submissions.insert_one(doc)
+
+    background_tasks.add_task(
+        send_email_notification,
+        "contact@kotklusser.be",
+        f"Nieuw contactbericht van {submission.name}",
+        f"""
+        <h2>Nieuw contactbericht via KotKlusser</h2>
+        <p><strong>Naam:</strong> {submission.name}</p>
+        <p><strong>Bedrijf:</strong> {submission.company or '—'}</p>
+        <p><strong>E-mail:</strong> {submission.email}</p>
+        <p><strong>Telefoon:</strong> {submission.phone or '—'}</p>
+        <hr />
+        <p><strong>Bericht:</strong></p>
+        <p>{submission.message}</p>
+        """
+    )
+    return {"message": "Bericht ontvangen, we nemen spoedig contact op."}
+
+
+@api_router.post("/demo-signup")
+async def submit_demo_signup(submission: DemoSignupSubmission, background_tasks: BackgroundTasks):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "type": "demo_signup",
+        "name": submission.name,
+        "email": submission.email,
+        "created_at": now
+    }
+    await db.contact_submissions.insert_one(doc)
+
+    background_tasks.add_task(
+        send_email_notification,
+        "contact@kotklusser.be",
+        f"Nieuwe demo-aanvraag van {submission.name}",
+        f"""
+        <h2>Nieuwe demo-aanvraag via KotKlusser</h2>
+        <p><strong>Naam:</strong> {submission.name}</p>
+        <p><strong>E-mail:</strong> {submission.email}</p>
+        """
+    )
+    return {"message": "Demo-aanvraag ontvangen, we nemen spoedig contact op."}
+
 
 # Health check
 @api_router.get("/")

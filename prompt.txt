@@ -1,28 +1,151 @@
-You are working on KotKlusser. A small visual fix is needed for the "Tegels aanpassen" modal in `frontend/src/pages/LandlordDashboard.jsx`.
+Read the following files carefully before making any changes:
+- /frontend/src/pages/LandingPage.jsx (find the contact form and demo form sections)
+- /backend/server.py (find the existing send_email_notification function and RESEND_API_KEY config)
 
-## PROBLEM
-The tile configuration Dialog/modal is too tall — it fills the entire viewport height, causing the bottom buttons (Annuleren/Opslaan) to be hidden behind the browser taskbar and tab bar when the browser is not in fullscreen mode.
+## Goal
+Connect the existing contact form (ContactPage or section in LandingPage) and the demo signup form to the backend, so submissions are:
+1. Saved to MongoDB
+2. Sent as an email to contact@kotklusser.be via Resend
 
-## FIX
-Find the DialogContent component for the "Tegels aanpassen" modal and apply the following changes:
+---
 
-1. Set a maximum height using `max-h-[80vh]` (not 100vh)
-2. Add `overflow-y-auto` to the scrollable content area inside the modal (the tile lists), NOT to the entire DialogContent
-3. Keep the footer (Annuleren + Opslaan buttons) OUTSIDE the scrollable area so it is always visible at the bottom
-4. Add `overflow-hidden` to the DialogContent itself so it respects rounded corners while scrolling
+## BACKEND CHANGES (server.py)
 
-The result should be a modal that:
-- Is never taller than 80% of the visible viewport height
-- Has a scrollable middle section (active tiles + available tiles list)
-- Always shows the footer buttons without scrolling
-- Stays visually centered and does not feel cramped
+### 1. Add Pydantic model for contact form submission
+Add this model near the other models at the top:
 
-## EXACT STRUCTURE TO AIM FOR
-DialogContent (max-h-[80vh], flex flex-col, overflow-hidden)
-  └── DialogHeader (static, not scrollable)
-  └── scrollable div (flex-1, overflow-y-auto, px-6, pb-2)
-       └── active tiles section
-       └── available tiles section
-  └── DialogFooter (static, not scrollable, border-t border-white/10, pt-4)
+class ContactFormSubmission(BaseModel):
+    name: str
+    company: Optional[str] = None
+    email: EmailStr
+    phone: Optional[str] = None
+    message: str
 
-Do not change any other part of the dashboard. Only modify the "Tegels aanpassen" DialogContent structure and its internal layout.
+class DemoSignupSubmission(BaseModel):
+    name: str
+    email: EmailStr
+
+### 2. Add two new public endpoints (no authentication required)
+Add these routes BEFORE the `app.include_router(api_router)` line, with prefix /api:
+
+@api_router.post("/contact")
+async def submit_contact_form(submission: ContactFormSubmission, background_tasks: BackgroundTasks):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "type": "contact",
+        "name": submission.name,
+        "company": submission.company,
+        "email": submission.email,
+        "phone": submission.phone,
+        "message": submission.message,
+        "created_at": now
+    }
+    await db.contact_submissions.insert_one(doc)
+
+    background_tasks.add_task(
+        send_email_notification,
+        "contact@kotklusser.be",
+        f"Nieuw contactbericht van {submission.name}",
+        f"""
+        <h2>Nieuw contactbericht via KotKlusser</h2>
+        <p><strong>Naam:</strong> {submission.name}</p>
+        <p><strong>Bedrijf:</strong> {submission.company or '—'}</p>
+        <p><strong>E-mail:</strong> {submission.email}</p>
+        <p><strong>Telefoon:</strong> {submission.phone or '—'}</p>
+        <hr />
+        <p><strong>Bericht:</strong></p>
+        <p>{submission.message}</p>
+        """
+    )
+    return {"message": "Bericht ontvangen, we nemen spoedig contact op."}
+
+
+@api_router.post("/demo-signup")
+async def submit_demo_signup(submission: DemoSignupSubmission, background_tasks: BackgroundTasks):
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "type": "demo_signup",
+        "name": submission.name,
+        "email": submission.email,
+        "created_at": now
+    }
+    await db.contact_submissions.insert_one(doc)
+
+    background_tasks.add_task(
+        send_email_notification,
+        "contact@kotklusser.be",
+        f"Nieuwe demo-aanvraag van {submission.name}",
+        f"""
+        <h2>Nieuwe demo-aanvraag via KotKlusser</h2>
+        <p><strong>Naam:</strong> {submission.name}</p>
+        <p><strong>E-mail:</strong> {submission.email}</p>
+        """
+    )
+    return {"message": "Demo-aanvraag ontvangen, we nemen spoedig contact op."}
+
+---
+
+## FRONTEND CHANGES
+
+### Contact form (full form — naam*, bedrijf, email*, telefoonnummer, bericht*)
+Find the existing contact form in the frontend. Add state and a submit handler:
+
+const [contactForm, setContactForm] = useState({ name: '', company: '', email: '', phone: '', message: '' });
+const [contactLoading, setContactLoading] = useState(false);
+
+const handleContactSubmit = async () => {
+  setContactLoading(true);
+  try {
+    await axios.post(`${API}/contact`, contactForm);
+    toast.success("Bericht verzonden! We nemen spoedig contact op.");
+    setContactForm({ name: '', company: '', email: '', phone: '', message: '' });
+  } catch (error) {
+    toast.error("Er ging iets mis. Probeer opnieuw.");
+  } finally {
+    setContactLoading(false);
+  }
+};
+
+Wire each input field's value and onChange to contactForm state.
+Wire the submit button's onClick to handleContactSubmit.
+Disable the submit button when contactLoading is true or required fields (name, email, message) are empty.
+
+### Demo signup form (naam*, email* only)
+Find the existing demo signup form. Add state and a submit handler:
+
+const [demoForm, setDemoForm] = useState({ name: '', email: '' });
+const [demoLoading, setDemoLoading] = useState(false);
+
+const handleDemoSubmit = async () => {
+  setDemoLoading(true);
+  try {
+    await axios.post(`${API}/demo-signup`, demoForm);
+    toast.success("Aanvraag ontvangen! We nemen spoedig contact op.");
+    setDemoForm({ name: '', email: '' });
+  } catch (error) {
+    toast.error("Er ging iets mis. Probeer opnieuw.");
+  } finally {
+    setDemoLoading(false);
+  }
+};
+
+Wire each input field's value and onChange to demoForm state.
+Wire the submit button's onClick to handleDemoSubmit.
+Disable the submit button when demoLoading is true or name/email are empty.
+
+---
+
+## EMAIL ADDRESS CLEANUP
+Scan ALL frontend files for any occurrence of "info@kotklusser.be" (in text, links, href="mailto:..." or placeholder text). If found, replace every occurrence with "contact@kotklusser.be". If "info@kotklusser.be" does not appear anywhere, skip this step entirely and do not make any changes related to it.
+
+---
+
+## IMPORTANT NOTES
+- Import axios at the top of the frontend files if not already imported: import axios from 'axios';
+- Import API from App.js if not already: import { API } from '../App'; (or wherever API is exported)
+- Use toast from sonner for success/error messages
+- Do NOT remove or redesign any existing UI — only wire up the existing form fields
+- Both endpoints are public (no JWT token needed)
+- Make sure axios.post uses the full API path: `${API}/contact` and `${API}/demo-signup`

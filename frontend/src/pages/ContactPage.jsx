@@ -1,4 +1,6 @@
 import { useState } from "react";
+import axios from "axios";
+import { toast } from "sonner";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -6,6 +8,7 @@ import { Mail, MapPin, Instagram, Linkedin, CheckCircle } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import LandingNav from "../components/LandingNav";
 import LandingFooter from "../components/LandingFooter";
+import { API } from "../App";
 
 const Textarea = ({ className = "", ...props }) => (
   <textarea
@@ -29,6 +32,7 @@ const ContactPage = () => {
     bericht: "",
   });
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
@@ -38,7 +42,7 @@ const ContactPage = () => {
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = {};
     if (!form.naam.trim()) newErrors.naam = "Naam is verplicht";
@@ -48,7 +52,22 @@ const ContactPage = () => {
       setErrors(newErrors);
       return;
     }
-    setSubmitted(true);
+    setLoading(true);
+    try {
+      await axios.post(`${API}/contact`, {
+        name: form.naam,
+        company: form.bedrijf || undefined,
+        email: form.email,
+        phone: form.telefoon || undefined,
+        message: form.bericht,
+      });
+      toast.success("Bericht verzonden! We nemen spoedig contact op.");
+      setSubmitted(true);
+    } catch {
+      toast.error("Er ging iets mis. Probeer opnieuw.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -84,7 +103,7 @@ const ContactPage = () => {
                 <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
                   <Mail className="w-5 h-5" />
                 </div>
-                <span>info@kotklusser.be</span>
+                <span>contact@kotklusser.be</span>
               </div>
               <div className="flex items-center gap-3 text-slate-300">
                 <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0">
@@ -124,7 +143,7 @@ const ContactPage = () => {
                   <h3 className="text-lg font-semibold text-white mb-2">Bericht ontvangen!</h3>
                   <p className="text-slate-400 text-sm leading-relaxed">
                     ✓ Bedankt voor uw bericht! We nemen zo snel mogelijk contact met u op via{" "}
-                    <span className="text-indigo-400">info@kotklusser.be</span>
+                    <span className="text-indigo-400">contact@kotklusser.be</span>
                   </p>
                 </motion.div>
               ) : (
@@ -196,9 +215,10 @@ const ContactPage = () => {
 
                   <Button
                     type="submit"
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white glow-primary"
+                    disabled={loading || !form.naam.trim() || !form.email.trim() || !form.bericht.trim()}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white glow-primary disabled:opacity-50"
                   >
-                    Verstuur bericht
+                    {loading ? "Versturen..." : "Verstuur bericht"}
                   </Button>
                 </motion.form>
               )}

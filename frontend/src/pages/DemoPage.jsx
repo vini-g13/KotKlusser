@@ -1,4 +1,7 @@
 import { useState, useEffect } from "react";
+import axios from "axios";
+import { toast } from "sonner";
+import { API } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -545,17 +548,27 @@ const DemoPage = () => {
   });
   const [leadForm, setLeadForm] = useState({ name: "", email: "" });
   const [leadErrors, setLeadErrors] = useState({});
+  const [leadLoading, setLeadLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("verhuurder");
   const [sharedTickets, setSharedTickets] = useState([]);
 
-  const submitLead = (e) => {
+  const submitLead = async (e) => {
     e.preventDefault();
     const errs = {};
     if (!leadForm.name.trim()) errs.name = "Naam is verplicht";
     if (!leadForm.email.trim()) errs.email = "E-mailadres is verplicht";
     if (Object.keys(errs).length > 0) { setLeadErrors(errs); return; }
-    localStorage.setItem("kotklusser_demo_lead", JSON.stringify(leadForm));
-    setLead(leadForm);
+    setLeadLoading(true);
+    try {
+      await axios.post(`${API}/demo-signup`, leadForm);
+      toast.success("Aanvraag ontvangen! We nemen spoedig contact op.");
+      localStorage.setItem("kotklusser_demo_lead", JSON.stringify(leadForm));
+      setLead(leadForm);
+    } catch {
+      toast.error("Er ging iets mis. Probeer opnieuw.");
+    } finally {
+      setLeadLoading(false);
+    }
   };
 
   return (
@@ -608,8 +621,12 @@ const DemoPage = () => {
                       />
                       {leadErrors.email && <p className="text-xs text-red-400">{leadErrors.email}</p>}
                     </div>
-                    <Button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white glow-primary">
-                      Bekijk de demo <ArrowRight className="w-4 h-4 ml-2" />
+                    <Button
+                      type="submit"
+                      disabled={leadLoading || !leadForm.name.trim() || !leadForm.email.trim()}
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white glow-primary disabled:opacity-50"
+                    >
+                      {leadLoading ? "Even geduld..." : <><span>Bekijk de demo</span> <ArrowRight className="w-4 h-4 ml-2" /></>}
                     </Button>
                     <p className="text-center text-xs text-slate-500">
                       Geen spam. Enkel toegang tot de gratis demo.

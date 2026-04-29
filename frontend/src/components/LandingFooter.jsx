@@ -59,7 +59,7 @@ const LandingFooter = () => {
 
         <div className="border-t border-white/5 pt-6">
           <p className="text-xs text-slate-500 text-center">
-            info@kotklusser.be — Diepenbeek, België
+            contact@kotklusser.be — Diepenbeek, België
           </p>
         </div>
       </div>
