@@ -53,6 +53,7 @@ const AuthProvider = ({ children }) => {
           localStorage.removeItem('refresh_token');
           setToken(null);
           setUser(null);
+          setSessionExpired(true);
         }
       }
       setLoading(false);
