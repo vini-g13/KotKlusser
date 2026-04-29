@@ -1,15 +1,3 @@
-Read the following files carefully before making any changes:
-- /backend/server.py (find RESEND_API_KEY, SENDER_EMAIL, MONGO_URL, DB_NAME config at the top)
-
-## Goal
-Create a standalone Python script that Railway will run as a cron job every hour. The script connects directly to MongoDB, finds demo signups where the follow-up email has not been sent yet and the scheduled time has passed, sends the follow-up email via Resend, and marks them as sent.
-
----
-
-## CREATE NEW FILE: /backend/cron_followup.py
-
-Create this file with the following content:
-
 import asyncio
 import os
 import logging
@@ -80,7 +68,6 @@ async def send_followup_emails():
                     "subject": "Nog even over KotKlusser 👋",
                     "html": html_content
                 }
-                import threading
                 resend.Emails.send(params)
 
                 await db.contact_submissions.update_one(
@@ -100,12 +87,3 @@ async def send_followup_emails():
 
 if __name__ == "__main__":
     asyncio.run(send_followup_emails())
-
----
-
-## IMPORTANT NOTES
-- Do NOT modify server.py
-- This is a completely standalone script — it manages its own MongoDB connection
-- It only sends to documents where follow_up_sent is False AND follow_up_scheduled_at has passed
-- Duplicate emails are impossible because follow_up_sent is set to True immediately after sending
-- The script exits automatically after running — Railway cron will restart it every hour

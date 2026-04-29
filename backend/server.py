@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, UploadFile, File, Form, BackgroundTasks, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -295,6 +295,52 @@ def estimate_repair_date(category: str, urgency: str) -> str:
     days = base_days.get(category, 5) * urgency_modifier.get(urgency, 1)
     estimated_date = datetime.now(timezone.utc) + timedelta(days=int(days))
     return estimated_date.isoformat()
+
+async def send_followup_emails():
+    """Find all demo signups where follow_up_sent is False and follow_up_scheduled_at is in the past, then send follow-up emails."""
+    now = datetime.now(timezone.utc)
+    pending = await db.contact_submissions.find({
+        "type": "demo_signup",
+        "follow_up_sent": False,
+        "follow_up_scheduled_at": {"$lte": now.isoformat()}
+    }).to_list(1000)
+
+    for signup in pending:
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+            <div style="background-color: #6366F1; padding: 24px; border-radius: 8px 8px 0 0;">
+                <h1 style="color: white; margin: 0; font-size: 24px;">Kot<span style="color: #c7d2fe;">Klusser</span></h1>
+            </div>
+            <div style="background-color: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+                <p>Beste {signup['name']},</p>
+                <p>Enkele dagen geleden toonde je interesse in KotKlusser, het platform waarmee verhuurders en studenten onderhoudsproblemen snel en gestructureerd kunnen oplossen.</p>
+                <p>We wilden even checken of je nog vragen hebt, of gewoon eens een kijkje wil nemen in het platform. Laat het ons weten via de website.</p>
+                <p style="text-align: center; margin: 32px 0;">
+                    <a href="https://kotklusser.be" style="background-color: #6366F1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                        👉 Ontdek KotKlusser verder
+                    </a>
+                </p>
+                <p>Heb je vragen of wil je een persoonlijke demo? Antwoord gewoon op deze mail, we helpen je graag verder.</p>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 24px 0;" />
+                <p style="margin: 0;">Met vriendelijke groeten</p>
+                <p style="margin: 4px 0;"><strong>Team KotKlusser</strong></p>
+                <a href="https://kotklusser.be" style="color: #6366F1;">kotklusser.be</a>
+            </div>
+        </div>
+        """
+
+        await send_email_notification(
+            signup['email'],
+            "Nog even over KotKlusser 👋",
+            html_content
+        )
+
+        await db.contact_submissions.update_one(
+            {"id": signup['id']},
+            {"$set": {"follow_up_sent": True, "follow_up_sent_at": now.isoformat()}}
+        )
+        logger.info(f"Follow-up email sent to {signup['email']}")
+
 
 async def send_email_notification(to_email: str, subject: str, html_content: str):
     if not RESEND_API_KEY:
@@ -1742,7 +1788,9 @@ async def submit_demo_signup(submission: DemoSignupSubmission, background_tasks:
         "type": "demo_signup",
         "name": submission.name,
         "email": submission.email,
-        "created_at": now
+        "created_at": now,
+        "follow_up_sent": False,
+        "follow_up_scheduled_at": (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
     }
     await db.contact_submissions.insert_one(doc)
 
@@ -1757,6 +1805,18 @@ async def submit_demo_signup(submission: DemoSignupSubmission, background_tasks:
         """
     )
     return {"message": "Demo-aanvraag ontvangen, we nemen spoedig contact op."}
+
+
+@api_router.post("/cron/send-followups")
+async def cron_send_followups(request: Request):
+    """Endpoint called by Railway cron to send follow-up emails."""
+    cron_secret = os.environ.get("CRON_SECRET", "")
+    auth_header = request.headers.get("Authorization", "")
+    if cron_secret and auth_header != f"Bearer {cron_secret}":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    await send_followup_emails()
+    return {"message": "Follow-up emails processed successfully"}
 
 
 # Health check
