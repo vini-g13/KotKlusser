@@ -162,46 +162,23 @@ const PropertyDetail = () => {
                 </Button>
               </div>
 
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-400">Korte code</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0B0A14] border border-white/10 rounded-lg px-4 py-3 font-mono text-lg text-white tracking-wider">
-                      {property.join_code}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(property.join_code, "Code")}
-                      className="border-white/10 text-slate-400 hover:text-white shrink-0"
-                      data-testid="copy-code-btn"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 bg-[#0B0A14] border border-white/10 rounded-lg px-4 py-3 font-mono text-lg text-white tracking-wider">
+                  {property.join_code}
                 </div>
-
-                <div className="space-y-2">
-                  <p className="text-sm text-slate-400">Uitnodigingslink</p>
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 bg-[#0B0A14] border border-white/10 rounded-lg px-4 py-3 text-sm text-slate-400 truncate">
-                      {property.join_link}
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => copyToClipboard(property.join_link, "Link")}
-                      className="border-white/10 text-slate-400 hover:text-white shrink-0"
-                      data-testid="copy-link-btn"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  onClick={() => copyToClipboard(property.join_code, "Code")}
+                  className="border-white/10 text-slate-400 hover:text-white shrink-0"
+                  data-testid="copy-code-btn"
+                >
+                  <Copy className="w-4 h-4" />
+                </Button>
               </div>
 
               <p className="text-xs text-slate-500">
-                Deel deze code of link met studenten zodat zij zich kunnen aanmelden bij dit pand.
+                Deel deze code met studenten zodat zij zich kunnen aanmelden bij dit pand.
               </p>
             </div>
           </motion.div>

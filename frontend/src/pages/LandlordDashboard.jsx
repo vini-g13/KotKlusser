@@ -256,7 +256,7 @@ const LandlordDashboard = () => {
     : properties.find(p => p.id === selectedProperty)?.name || 'Pand';
 
   return (
-    <div className="min-h-screen bg-[#0B0A14] flex">
+    <div className="min-h-screen bg-[#0B0A14] flex overflow-x-hidden">
       {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex lg:flex-col lg:w-64 lg:fixed lg:inset-y-0 bg-[#12111F] border-r border-white/5">
         <div className="flex items-center h-16 px-6 border-b border-white/5">
@@ -475,8 +475,8 @@ const LandlordDashboard = () => {
                       key={prop.id}
                       onClick={() => { setSelectedProperty(prop.id); setSidebarOpen(false); }}
                       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
-                        selectedProperty === prop.id 
-                          ? 'bg-indigo-600/10 text-indigo-400' 
+                        selectedProperty === prop.id
+                          ? 'bg-indigo-600/10 text-indigo-400'
                           : 'text-slate-400 hover:bg-white/5'
                       }`}
                     >
@@ -487,6 +487,39 @@ const LandlordDashboard = () => {
                       </div>
                     </button>
                   ))}
+                </div>
+                <button
+                  onClick={() => { setShowNewProperty(true); setSidebarOpen(false); }}
+                  className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-500 hover:bg-white/5 hover:text-slate-300 transition-colors"
+                  data-testid="mobile-add-property-btn"
+                >
+                  <Plus className="w-5 h-5" />
+                  Pand toevoegen
+                </button>
+                <div className="border-t border-white/5 mt-4 pt-4">
+                  <Link
+                    to="/verhuurder/profiel"
+                    onClick={() => setSidebarOpen(false)}
+                    className="flex items-center gap-3 px-4 py-3 rounded-lg mb-2 group text-slate-400 hover:bg-white/5 hover:text-white transition-colors"
+                    data-testid="mobile-profile-link"
+                  >
+                    <div className="w-10 h-10 rounded-full bg-indigo-600 flex items-center justify-center text-white font-medium shrink-0">
+                      {user?.name?.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate group-hover:text-indigo-400 transition-colors">{user?.name}</p>
+                      <p className="text-xs text-slate-400">Verhuurder</p>
+                    </div>
+                  </Link>
+                  <Button
+                    variant="outline"
+                    className="w-full border-white/10 text-slate-400 hover:text-white"
+                    onClick={() => { setSidebarOpen(false); handleLogout(); }}
+                    data-testid="mobile-sidebar-logout-btn"
+                  >
+                    <LogOut className="w-4 h-4 mr-2" />
+                    Uitloggen
+                  </Button>
                 </div>
               </nav>
             </motion.aside>
@@ -523,9 +556,9 @@ const LandlordDashboard = () => {
       </Dialog>
 
       {/* Main content */}
-      <main className="flex-1 lg:ml-64">
-        <div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8">
-          <div className="max-w-6xl mx-auto">
+      <main className="flex-1 lg:ml-64 min-w-0">
+        <div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8 w-full min-w-0">
+          <div className="max-w-6xl mx-auto w-full min-w-0">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
               <div>
@@ -592,7 +625,7 @@ const LandlordDashboard = () => {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4 }}
-              className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8"
+              className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6 w-full"
             >
               {tileConfig.map(({ key, label }) => {
                 const def = TILE_DEFINITIONS[key];
@@ -742,7 +775,7 @@ const LandlordDashboard = () => {
                   data-testid="search-input"
                 />
               </div>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap gap-2 w-full">
                 <Select value={statusFilter} onValueChange={setStatusFilter}>
                   <SelectTrigger className="w-[140px] bg-[#161425] border-white/10 text-white" data-testid="status-filter">
                     <SelectValue placeholder="Status" />

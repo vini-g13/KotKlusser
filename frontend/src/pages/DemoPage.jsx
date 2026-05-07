@@ -173,6 +173,29 @@ const StudentDemo = ({ sharedTickets, setSharedTickets }) => {
                 className="w-full rounded-lg border border-white/10 bg-[#1C1A2E] px-3 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 text-sm resize-none"
               />
             </div>
+            {/* Photo upload — demo placeholder */}
+            <div className="space-y-1">
+              <Label className="text-slate-300 text-sm flex items-center gap-2">
+                Foto toevoegen
+                <span className="text-xs text-slate-500 font-normal">(optioneel)</span>
+              </Label>
+              <div className="border border-dashed border-white/15 rounded-xl bg-[#1C1A2E] px-4 py-5 flex flex-col items-center gap-2 text-center">
+                <div className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                </div>
+                <p className="text-sm text-slate-400">Foto uploaden</p>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  Niet beschikbaar in de demo
+                </span>
+                <p className="text-xs text-slate-500">Foto's uploaden is beschikbaar in de volledige versie</p>
+              </div>
+            </div>
+
             <Button onClick={() => setStep(3)} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white">
               Volgende <ArrowRight className="w-4 h-4 ml-2" />
             </Button>
@@ -320,6 +343,169 @@ const VerhuurderDemo = ({ sharedTickets }) => {
     ? { ...allTickets.find((t) => t.id === selectedTicket), status: ticketStatuses[selectedTicket] }
     : null;
 
+  // If a ticket is selected, show full detail view (in-panel navigation)
+  if (panelTicket) {
+    return (
+      <div className="bg-[#161425] border border-white/5 rounded-2xl overflow-hidden">
+        {/* In-panel header with back button */}
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-white/5 bg-[#12111F]">
+          <button
+            onClick={() => setSelectedTicket(null)}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-white transition-colors text-sm"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+            Terug naar overzicht
+          </button>
+          <span className="text-slate-600">|</span>
+          <span className="text-xs text-slate-500 font-mono">{panelTicket.ticket_number}</span>
+        </div>
+
+        {/* Detail content */}
+        <div className="p-5 space-y-5 overflow-y-auto" style={{ maxHeight: "560px" }}>
+
+          {/* Demo feature banner */}
+          <div className="bg-indigo-600/10 border border-indigo-500/20 rounded-lg px-3 py-2.5 flex items-start gap-2">
+            <span className="text-indigo-400 text-sm mt-0.5">🎭</span>
+            <div>
+              <p className="text-xs text-indigo-300 font-medium">Demo-modus</p>
+              <p className="text-xs text-slate-400 mt-0.5">Chat en foto's zijn enkel beschikbaar in de volledige versie.</p>
+            </div>
+          </div>
+
+          {/* Title + badges */}
+          <div>
+            <h3 className="text-white font-semibold text-lg mb-2">{panelTicket.title}</h3>
+            <div className="flex gap-2 flex-wrap">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[ticketStatuses[panelTicket.id] || panelTicket.status]}`}>
+                {statusLabel[ticketStatuses[panelTicket.id] || panelTicket.status]}
+              </span>
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${urgencyStyle[panelTicket.urgency]}`}>
+                {panelTicket.urgency}
+              </span>
+              {panelTicket.isStudentCreated && (
+                <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
+                  Nieuwe melding
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Meta info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-[#1C1A2E] rounded-lg p-3">
+              <p className="text-xs text-slate-500 mb-1">Student</p>
+              <p className="text-sm text-white">{panelTicket.student}</p>
+            </div>
+            <div className="bg-[#1C1A2E] rounded-lg p-3">
+              <p className="text-xs text-slate-500 mb-1">Datum</p>
+              <p className="text-sm text-white">{panelTicket.date}</p>
+            </div>
+          </div>
+
+          {/* Status stepper */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Status</p>
+            <div className="flex items-center gap-0">
+              {STATUS_STEPS.map((s, idx) => {
+                const currentIdx = STATUS_STEPS.indexOf(ticketStatuses[panelTicket.id] || panelTicket.status);
+                const done = idx <= currentIdx;
+                const last = idx === STATUS_STEPS.length - 1;
+                return (
+                  <div key={s} className="flex items-center flex-1 last:flex-none">
+                    <div className="flex flex-col items-center">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
+                        done ? "bg-indigo-600 text-white" : "bg-white/10 text-slate-500"
+                      }`}>
+                        {done ? <CheckCircle className="w-3.5 h-3.5" /> : idx + 1}
+                      </div>
+                      <span className={`text-xs mt-1 whitespace-nowrap ${done ? "text-indigo-400" : "text-slate-500"}`}>
+                        {STATUS_STEP_LABELS[idx]}
+                      </span>
+                    </div>
+                    {!last && (
+                      <div className={`flex-1 h-px mx-1 mb-5 ${idx < currentIdx ? "bg-indigo-500" : "bg-white/10"}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status wijzigen */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Status wijzigen</p>
+            <div className="relative">
+              <select
+                value={ticketStatuses[panelTicket.id] || panelTicket.status}
+                onChange={(e) => setTicketStatuses({ ...ticketStatuses, [panelTicket.id]: e.target.value })}
+                className="w-full bg-[#1C1A2E] border border-white/10 text-white rounded-lg px-3 py-2 text-sm appearance-none focus:outline-none focus:border-indigo-500"
+              >
+                {STATUS_STEPS.map((s) => (
+                  <option key={s} value={s}>{statusLabel[s]}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+
+          {/* Datum inplannen */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Technieker inplannen</p>
+            <div className="relative">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={plannedDates[panelTicket.id] || ""}
+                onChange={(e) => setPlannedDates({ ...plannedDates, [panelTicket.id]: e.target.value })}
+                className="w-full bg-[#1C1A2E] border border-white/10 text-white rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:border-indigo-500 [color-scheme:dark]"
+              />
+            </div>
+            {plannedDates[panelTicket.id] && (
+              <p className="text-xs text-emerald-400 mt-1">
+                ✓ Technieker ingepland op {new Date(plannedDates[panelTicket.id]).toLocaleDateString("nl-BE", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+            )}
+          </div>
+
+          {/* Chat preview */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Berichten</p>
+            <div className="space-y-3 bg-[#0B0A14] rounded-xl p-4">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs text-white shrink-0">
+                  {panelTicket.student?.charAt(0) || "S"}
+                </div>
+                <div className="bg-[#1C1A2E] border border-white/10 rounded-xl rounded-tl-none px-4 py-3 max-w-[80%]">
+                  <p className="text-xs text-slate-500 mb-1">Student</p>
+                  <p className="text-sm text-white">Goeiedag, dit probleem is al een tijdje bezig.</p>
+                </div>
+              </div>
+              <div className="flex gap-3 justify-end">
+                <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-xl rounded-tr-none px-4 py-3 max-w-[80%]">
+                  <p className="text-xs text-indigo-400 mb-1">Verhuurder (u)</p>
+                  <p className="text-sm text-white">Bedankt voor de melding! We bekijken dit zo snel mogelijk.</p>
+                </div>
+                <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white shrink-0">V</div>
+              </div>
+              <div className="mt-3 pt-3 border-t border-white/5 flex flex-col items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/25">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  Alleen in de volledige versie
+                </span>
+                <p className="text-xs text-slate-500 text-center">Chatten met studenten is beschikbaar na registratie.</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="relative">
       {/* Tiles */}
@@ -398,144 +584,6 @@ const VerhuurderDemo = ({ sharedTickets }) => {
         )}
       </div>
 
-      {/* Slide-in ticket panel */}
-      <AnimatePresence>
-        {panelTicket && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-black/50 z-40"
-              onClick={() => setSelectedTicket(null)}
-            />
-            <motion.div
-              initial={{ x: "100%" }}
-              animate={{ x: 0 }}
-              exit={{ x: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 250 }}
-              className="fixed top-0 right-0 bottom-0 w-full max-w-md bg-[#12111F] border-l border-white/10 z-50 overflow-y-auto"
-            >
-              <div className="p-6 space-y-6">
-                {/* Header */}
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs text-slate-500 font-mono mb-1">{panelTicket.ticket_number}</p>
-                    <h3 className="text-white font-semibold text-lg">{panelTicket.title}</h3>
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusStyle[ticketStatuses[panelTicket.id] || panelTicket.status]}`}>
-                        {statusLabel[ticketStatuses[panelTicket.id] || panelTicket.status]}
-                      </span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${urgencyStyle[panelTicket.urgency]}`}>
-                        {panelTicket.urgency}
-                      </span>
-                      {panelTicket.isStudentCreated && (
-                        <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-500/15 text-indigo-400 border border-indigo-500/30">
-                          Nieuwe melding
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <button onClick={() => setSelectedTicket(null)} className="text-slate-400 hover:text-white transition-colors">
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* Status stepper */}
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Status</p>
-                  <div className="flex items-center gap-0">
-                    {STATUS_STEPS.map((s, idx) => {
-                      const currentIdx = STATUS_STEPS.indexOf(ticketStatuses[panelTicket.id] || panelTicket.status);
-                      const done = idx <= currentIdx;
-                      const last = idx === STATUS_STEPS.length - 1;
-                      return (
-                        <div key={s} className="flex items-center flex-1 last:flex-none">
-                          <div className="flex flex-col items-center">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${
-                              done ? "bg-indigo-600 text-white" : "bg-white/10 text-slate-500"
-                            }`}>
-                              {done ? <CheckCircle className="w-3.5 h-3.5" /> : idx + 1}
-                            </div>
-                            <span className={`text-xs mt-1 whitespace-nowrap ${done ? "text-indigo-400" : "text-slate-500"}`}>
-                              {STATUS_STEP_LABELS[idx]}
-                            </span>
-                          </div>
-                          {!last && (
-                            <div className={`flex-1 h-px mx-1 mb-5 ${idx < currentIdx ? "bg-indigo-500" : "bg-white/10"}`} />
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Status wijzigen */}
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Status wijzigen</p>
-                  <div className="relative">
-                    <select
-                      value={ticketStatuses[panelTicket.id] || panelTicket.status}
-                      onChange={(e) => setTicketStatuses({ ...ticketStatuses, [panelTicket.id]: e.target.value })}
-                      className="w-full bg-[#1C1A2E] border border-white/10 text-white rounded-lg px-3 py-2 text-sm appearance-none focus:outline-none focus:border-indigo-500"
-                    >
-                      {STATUS_STEPS.map((s) => (
-                        <option key={s} value={s}>{statusLabel[s]}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                {/* Datum inplannen */}
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Technieker inplannen</p>
-                  <div className="relative">
-                    <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                    <input
-                      type="date"
-                      value={plannedDates[panelTicket.id] || ""}
-                      onChange={(e) => setPlannedDates({ ...plannedDates, [panelTicket.id]: e.target.value })}
-                      className="w-full bg-[#1C1A2E] border border-white/10 text-white rounded-lg pl-10 pr-3 py-2 text-sm focus:outline-none focus:border-indigo-500 [color-scheme:dark]"
-                    />
-                  </div>
-                  {plannedDates[panelTicket.id] && (
-                    <p className="text-xs text-emerald-400 mt-1">
-                      ✓ Technieker ingepland op {new Date(plannedDates[panelTicket.id]).toLocaleDateString("nl-BE", { day: "numeric", month: "long", year: "numeric" })}
-                    </p>
-                  )}
-                </div>
-
-                {/* Chat preview */}
-                <div>
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Berichten</p>
-                  <div className="space-y-3 bg-[#0B0A14] rounded-xl p-4">
-                    <div className="flex gap-3">
-                      <div className="w-8 h-8 rounded-full bg-slate-600 flex items-center justify-center text-xs text-white shrink-0">
-                        {panelTicket.student?.charAt(0) || "S"}
-                      </div>
-                      <div className="bg-[#1C1A2E] border border-white/10 rounded-xl rounded-tl-none px-4 py-3 max-w-[80%]">
-                        <p className="text-xs text-slate-500 mb-1">Student</p>
-                        <p className="text-sm text-white">Goeiedag, dit probleem is al een tijdje bezig.</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-3 justify-end">
-                      <div className="bg-indigo-600/20 border border-indigo-500/30 rounded-xl rounded-tr-none px-4 py-3 max-w-[80%]">
-                        <p className="text-xs text-indigo-400 mb-1">Verhuurder (u)</p>
-                        <p className="text-sm text-white">Bedankt voor de melding! We bekijken dit zo snel mogelijk.</p>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center text-xs text-white shrink-0">V</div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-white/5">
-                      <p className="text-xs text-slate-500 text-center">💬 Chatten met studenten is beschikbaar in de volledige versie</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 };

@@ -1,80 +1,64 @@
-Read the following files carefully before making any changes:
-- /frontend/src/context/AuthContext.js (or AuthContext.jsx — check which exists)
-- /frontend/src/pages/Login.jsx (or wherever the login form is handled)
-- /frontend/src/App.js
+You are working on KotKlusser. Fix a mobile horizontal overflow issue in `frontend/src/pages/LandlordDashboard.jsx`.
 
-## Goal
-Update the frontend to work with the new refresh token system. The access token stays in React memory (never in localStorage). The refresh token is received from the backend and stored in localStorage (since httpOnly cookies require additional backend CORS setup). Build automatic token renewal and a session-expired screen.
+## PROBLEM
+The entire main content area (tiles, filters, ticket list) overflows horizontally on mobile — content is cut off on the right side. The page is wider than the mobile viewport.
 
-## Change 1 — AuthContext
+## ROOT CAUSE
+The main content wrapper uses `lg:ml-64` to offset for the desktop sidebar, but on mobile this combined with inner padding/widths causes horizontal overflow.
 
-Find the AuthContext file. Currently it stores a single token. Update it to:
+## FIX
 
-1. State:
-   - `user` — user object (keep existing)
-   - `token` — access token in memory only (keep existing, do NOT store in localStorage)
-   - `refreshToken` — stored in localStorage as 'refresh_token'
-
-2. On app load (useEffect):
-   - Read 'refresh_token' from localStorage
-   - If it exists, call POST /auth/refresh with { refresh_token } 
-   - If successful: set token and user from response, continue normally
-   - If failed (401): clear localStorage, set user/token to null (session expired)
-
-3. Update the login function:
-   - After successful login, save response.refresh_token to localStorage as 'refresh_token'
-   - Set token (access token) in memory state only
-
-4. Update the logout function:
-   - Call POST /auth/logout with { refresh_token: localStorage.getItem('refresh_token') }
-   - Clear localStorage ('refresh_token')
-   - Set user and token to null
-
-5. Add a new function: refreshAccessToken()
-   - Reads refresh_token from localStorage
-   - Calls POST /auth/refresh
-   - If successful: updates token in state, returns new token
-   - If failed: clears localStorage, sets user/token to null, sets a new state variable `sessionExpired` to true
-
-6. Add `sessionExpired` to context state (default false) and expose it + a `clearSessionExpired` function (sets it back to false)
-
-## Change 2 — API calls (axios or fetch interceptor)
-
-Find where API calls are made. If there is an axios instance or a central api.js file, add a response interceptor there. If not, create /frontend/src/utils/api.js:
-
-```javascript
-// Intercept 401 responses
-// On 401: call refreshAccessToken() from AuthContext
-// If refresh succeeds: retry the original request with new token
-// If refresh fails: do nothing (AuthContext already sets sessionExpired = true)
+### Step 1 — Add overflow-x-hidden to the root div
+Find the outermost div of the component:
+```jsx
+<div className="min-h-screen bg-[#0B0A14] flex">
+```
+Replace with:
+```jsx
+<div className="min-h-screen bg-[#0B0A14] flex overflow-x-hidden">
 ```
 
-The interceptor needs access to AuthContext. Use a pattern where the axios instance is initialized with a setTokenRef or similar — look at how token is currently passed to API calls and follow the same pattern.
+### Step 2 — Fix the main content area
+Find:
+```jsx
+<main className="flex-1 lg:ml-64">
+```
+Replace with:
+```jsx
+<main className="flex-1 lg:ml-64 min-w-0">
+```
 
-## Change 3 — SessionExpiredScreen component
+### Step 3 — Fix the inner content container
+Find the div with `pt-20 lg:pt-8` (the padding-top wrapper inside main):
+```jsx
+<div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8">
+```
+Replace with:
+```jsx
+<div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8 w-full min-w-0">
+```
 
-Create /frontend/src/components/SessionExpiredScreen.jsx:
+### Step 4 — Fix the max-width inner container
+Find:
+```jsx
+<div className="max-w-6xl mx-auto">
+```
+Replace with:
+```jsx
+<div className="max-w-6xl mx-auto w-full min-w-0">
+```
 
-- Full screen overlay (fixed, z-50, dark background matching the app's dark theme)
-- Centered card with:
-  - Icon: a lock or shield icon from lucide-react
-  - Title: "Sessie verlopen" (bold, white)
-  - Subtitle: "Je bent te lang inactief geweest. Log opnieuw in om verder te gaan." (gray text)
-  - Button: "Terug naar login" with a CornerDownLeft icon from lucide-react (icon on the right side of the text)
-  - Button style: match the existing primary button style of the app (check Login.jsx or other pages for the exact Tailwind classes used on primary buttons)
-- On button click:
-  1. Call clearSessionExpired() from AuthContext
-  2. Navigate to /login using useNavigate()
+### Step 5 — Fix the tiles grid
+Find the grid div that renders the stat tiles (contains the tile buttons). Ensure it has `w-full` and no possibility of overflowing. The grid should be:
+```jsx
+className="grid grid-cols-2 gap-3 mb-6 w-full"
+```
+Keep all existing motion/animation props, only fix the className.
 
-## Change 4 — Mount SessionExpiredScreen in App.js
+### Step 6 — Fix filter row
+Find the div containing the filter dropdowns (Alle status, Alle categorieën, Alle panden selects). Add `flex-wrap` and `w-full` if not already present:
+```jsx
+className="flex flex-wrap gap-2 w-full"
+```
 
-In App.js, import AuthContext and SessionExpiredScreen.
-Add this logic: if sessionExpired === true, render <SessionExpiredScreen /> on top of everything (as an overlay, not replacing the current route).
-
-## Important rules
-- Do NOT change any page components (LandlordDashboard, StudentDashboard, etc.)
-- Do NOT change routing structure
-- Keep all existing Tailwind classes and styling patterns
-- Follow the exact same code style already present in AuthContext
-- If AuthContext is a .js file keep it .js, do not rename to .jsx
-- The refresh endpoint is POST /auth/refresh and logout is POST /auth/logout on the same base URL as other API calls
+Do not change any visual styling, colors, or desktop layout. Only add `min-w-0`, `w-full`, `overflow-x-hidden` and `flex-wrap` where needed to prevent horizontal overflow on mobile.

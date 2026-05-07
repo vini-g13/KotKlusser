@@ -284,13 +284,22 @@ const TicketDetail = () => {
                   <p className="text-white capitalize">{ticket.category}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/5">
+              <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+                <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-white/5 shrink-0">
                   <MapPin className="w-5 h-5 text-slate-400" />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-xs text-slate-400">Locatie</p>
-                  <p className="text-white capitalize">{ticket.location}</p>
+                  <p className="text-white capitalize">
+                    {ticket.location === 'gemeenschappelijk' ? (
+                      <>
+                        <span className="sm:hidden">Gem. ruimte</span>
+                        <span className="hidden sm:inline">Gemeenschappelijk</span>
+                      </>
+                    ) : (
+                      ticket.location
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">

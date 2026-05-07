@@ -256,7 +256,14 @@ const NewReport = () => {
                           data-testid={`location-${loc.id}`}
                         >
                           {loc.icon}
-                          <span className="text-sm">{loc.name}</span>
+                          {loc.id === 'gemeenschappelijk' ? (
+                            <span className="text-sm">
+                              <span className="sm:hidden">Gem. ruimte</span>
+                              <span className="hidden sm:inline">Gemeenschappelijke ruimte</span>
+                            </span>
+                          ) : (
+                            <span className="text-sm">{loc.name}</span>
+                          )}
                         </button>
                       ))}
                     </div>
