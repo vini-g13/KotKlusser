@@ -1,64 +1,263 @@
-You are working on KotKlusser. Fix a mobile horizontal overflow issue in `frontend/src/pages/LandlordDashboard.jsx`.
+Create a new file: frontend/src/pages/PricingPage.jsx
 
-## PROBLEM
-The entire main content area (tiles, filters, ticket list) overflows horizontally on mobile — content is cut off on the right side. The page is wider than the mobile viewport.
+This is a new public pricing page for KotKlusser, a Belgian student housing maintenance ticketing platform. Build it to match the existing site style exactly — dark background, indigo accent, Framer Motion animations, LandingNav and LandingFooter.
 
-## ROOT CAUSE
-The main content wrapper uses `lg:ml-64` to offset for the desktop sidebar, but on mobile this combined with inner padding/widths causes horizontal overflow.
+--- STYLE REFERENCE ---
+- Background: bg-[#0B0A14], cards: bg-[#161425], elevated: bg-[#1C1A2E]
+- Borders: border-white/5, hover: hover:border-indigo-500/30
+- Text: text-white (headings), text-slate-400 (body), text-indigo-400 (accents)
+- Font headings: font-['Outfit'], body: Inter
+- Accent color: indigo-500 / indigo-600
+- Animations: Framer Motion fadeUp pattern used across the site:
+  const fadeUp = (delay = 0) => ({ initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5, delay } })
+- Buttons: bg-indigo-600 hover:bg-indigo-700 text-white for primary; border-white/10 text-white for ghost/outline
 
-## FIX
+--- IMPORTS ---
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "../components/ui/button";
+import { Check, ChevronDown, ChevronUp, Building2, Zap, Shield, Headphones } from "lucide-react";
+import LandingNav from "../components/LandingNav";
+import LandingFooter from "../components/LandingFooter";
 
-### Step 1 — Add overflow-x-hidden to the root div
-Find the outermost div of the component:
-```jsx
-<div className="min-h-screen bg-[#0B0A14] flex">
-```
-Replace with:
-```jsx
-<div className="min-h-screen bg-[#0B0A14] flex overflow-x-hidden">
-```
+--- PAGE STRUCTURE ---
 
-### Step 2 — Fix the main content area
-Find:
-```jsx
-<main className="flex-1 lg:ml-64">
-```
-Replace with:
-```jsx
-<main className="flex-1 lg:ml-64 min-w-0">
-```
+1. HERO SECTION
+   - pt-32 pb-16 px-4 sm:px-6 lg:px-8, max-w-4xl mx-auto text-center
+   - Small badge above title: inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-sm mb-6
+     Badge text: "Transparante prijzen"
+   - h1: "Eenvoudig. Transparant. Eerlijk." — text-4xl md:text-5xl font-bold text-white font-['Outfit']
+   - Subtitle: "Kies het plan dat past bij uw portefeuille. Geen verrassingen, geen verborgen kosten." — text-slate-400 text-lg mt-4 max-w-2xl mx-auto
+   - Billing toggle directly below subtitle (see TOGGLE section)
 
-### Step 3 — Fix the inner content container
-Find the div with `pt-20 lg:pt-8` (the padding-top wrapper inside main):
-```jsx
-<div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8">
-```
-Replace with:
-```jsx
-<div className="pt-20 lg:pt-8 pb-8 px-4 sm:px-6 lg:px-8 w-full min-w-0">
-```
+2. BILLING TOGGLE
+   - Centered row with gap-4, mt-8 mb-12
+   - "Maandelijks" label — text-sm font-medium, active = text-white, inactive = text-slate-400
+   - Toggle switch: w-12 h-6 rounded-full cursor-pointer bg-[#1C1A2E] border border-white/10 relative, inner circle w-5 h-5 rounded-full bg-indigo-500 absolute top-0.5 transition-all, left-0.5 when monthly, left-6 when yearly
+   - "Jaarlijks" label — same as above
+   - Savings badge (only visible when yearly is selected): bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs px-2 py-0.5 rounded-full
+     Badge text: "2 maanden gratis"
+   - Use useState: const [isYearly, setIsYearly] = useState(false)
+   - Toggle click handler: setIsYearly(!isYearly)
 
-### Step 4 — Fix the max-width inner container
-Find:
-```jsx
-<div className="max-w-6xl mx-auto">
-```
-Replace with:
-```jsx
-<div className="max-w-6xl mx-auto w-full min-w-0">
-```
+3. PRICING CARDS GRID
+   - max-w-6xl mx-auto px-4 sm:px-6 lg:px-8
+   - Grid: grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6
+   - Render 4 plan cards from the PLANS array below
+   - Featured card (Growth) gets: ring-2 ring-indigo-500 relative — add a "Meest gekozen" badge at top center:
+     absolute -top-3 left-1/2 -translate-x-1/2 bg-indigo-500 text-white text-xs font-medium px-4 py-1 rounded-full whitespace-nowrap
 
-### Step 5 — Fix the tiles grid
-Find the grid div that renders the stat tiles (contains the tile buttons). Ensure it has `w-full` and no possibility of overflowing. The grid should be:
-```jsx
-className="grid grid-cols-2 gap-3 mb-6 w-full"
-```
-Keep all existing motion/animation props, only fix the className.
+   PLANS array (define inside component):
+   const plans = [
+     {
+       key: "starter",
+       name: "Starter",
+       rooms: "0–15 kamers",
+       monthlyPrice: 0,
+       yearlyPrice: 0,
+       yearlyTotal: 0,
+       setupFee: null,
+       featured: false,
+       cta: "Gratis starten",
+       ctaLink: "/register?role=landlord",
+       features: [
+         "Tot 15 kamers",
+         "1 gebouw",
+         "Basis ticketing",
+         "E-mailmeldingen",
+         "Studentonboarding via koppelcode",
+         "KotKlusser branding",
+       ],
+     },
+     {
+       key: "growth",
+       name: "Growth",
+       rooms: "16–50 kamers",
+       monthlyPrice: 149,
+       yearlyPrice: 124,
+       yearlyTotal: 1490,
+       setupFee: 349,
+       featured: true,
+       cta: "Plan starten",
+       ctaLink: "/contact",
+       features: [
+         "Tot 50 kamers",
+         "Meerdere gebouwen",
+         "Onbeperkte meldingen",
+         "Volledig dashboard",
+         "Prioriteiten & statussen",
+         "Foto uploads per melding",
+         "E-mailnotificaties",
+         "Studentonboarding via koppelcode",
+         "Huurdersbeheer per pand",
+       ],
+     },
+     {
+       key: "pro",
+       name: "Pro",
+       rooms: "51–150 kamers",
+       monthlyPrice: 299,
+       yearlyPrice: 249,
+       yearlyTotal: 2990,
+       setupFee: 699,
+       featured: false,
+       cta: "Plan starten",
+       ctaLink: "/contact",
+       features: [
+         "Tot 150 kamers",
+         "Alles uit Growth",
+         "Eigen branding & logo",
+         "Multi-user toegang",
+         "Exportfuncties",
+         "Prioriteitssupport",
+         "Geavanceerde rapportage",
+       ],
+     },
+     {
+       key: "enterprise",
+       name: "Enterprise",
+       rooms: "150+ kamers",
+       monthlyPrice: null,
+       yearlyPrice: null,
+       yearlyTotal: null,
+       setupFee: null,
+       featured: false,
+       cta: "Neem contact op",
+       ctaLink: "/contact",
+       features: [
+         "Onbeperkt kamers",
+         "Alles uit Pro",
+         "Persoonlijke onboarding",
+         "SLA & dedicated support",
+         "Custom workflows",
+         "Mogelijke integraties",
+         "Custom facturatie",
+       ],
+     },
+   ];
 
-### Step 6 — Fix filter row
-Find the div containing the filter dropdowns (Alle status, Alle categorieën, Alle panden selects). Add `flex-wrap` and `w-full` if not already present:
-```jsx
-className="flex flex-wrap gap-2 w-full"
-```
+   CARD MARKUP per plan:
+   - Outer div: relative bg-[#161425] border border-white/5 rounded-2xl p-6 flex flex-col hover:border-indigo-500/20 transition-colors duration-300
+   - Featured plan: additionally add ring-2 ring-indigo-500
+   - Plan name: text-lg font-semibold text-white font-['Outfit'] mb-1
+   - Rooms badge: text-xs text-slate-500 mb-6 (e.g. "16–50 kamers")
+   - Price block:
+     - If monthlyPrice === 0: show "Gratis" in text-4xl font-bold text-white
+     - If monthlyPrice === null: show "Op maat" in text-3xl font-bold text-white, and below it text-sm text-slate-400 "Vanaf ~€599/maand"
+     - Otherwise: show "€{isYearly ? plan.yearlyPrice : plan.monthlyPrice}" text-4xl font-bold text-white, with "/maand" text-slate-400 text-sm inline after
+     - If yearly and yearlyTotal > 0: show below "€{plan.yearlyTotal} per jaar gefactureerd" text-xs text-slate-500 mt-1
+   - Setup fee line (if setupFee not null):
+     - text-xs text-slate-500 mt-2: "Eenmalig: €{plan.setupFee} setup"
+     - If isYearly: show instead "Setup inbegrepen bij jaarplan" text-xs text-emerald-400 mt-2
+   - Divider: border-t border-white/5 my-5
+   - Features list: ul space-y-3 flex-1 mb-6
+     Each feature: li flex items-start gap-2
+       - Check icon: w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0
+       - text-sm text-slate-300
+   - CTA button: w-full, primary style (bg-indigo-600 hover:bg-indigo-700) for featured, outline style (border border-white/10 text-white hover:bg-white/5) for others
+     Enterprise CTA uses outline style
+     Wrap in Link to={plan.ctaLink}
 
-Do not change any visual styling, colors, or desktop layout. Only add `min-w-0`, `w-full`, `overflow-x-hidden` and `flex-wrap` where needed to prevent horizontal overflow on mobile.
+4. TRUST STRIP
+   - py-16 px-4 sm:px-6 lg:px-8, max-w-4xl mx-auto
+   - 3 items in a flex-wrap justify-center gap-8 md:gap-16 row
+   - Each item: flex items-center gap-3
+     Icon (w-8 h-8 text-indigo-400) + text block (label text-sm font-medium text-white + sub text-xs text-slate-500)
+   Items:
+   - Icon: Shield — "Fiscaal aftrekbaar" / "Als beroepskost voor verhuurders"
+   - Icon: Zap — "Snel operationeel" / "Binnen 24u volledig actief"
+   - Icon: Headphones — "Persoonlijke support" / "Altijd bereikbaar via e-mail"
+
+5. FAQ SECTION
+   - py-16 px-4 sm:px-6 lg:px-8, max-w-3xl mx-auto
+   - Section title: "Veelgestelde vragen" — text-2xl md:text-3xl font-bold text-white font-['Outfit'] text-center mb-10
+   - Accordion: each FAQ is a div with border-b border-white/5
+   - Use useState: const [openFaq, setOpenFaq] = useState(null)
+   - Toggle: setOpenFaq(openFaq === idx ? null : idx)
+   - Each item:
+     - Button row: w-full flex justify-between items-center py-4 text-left, onClick toggles
+       - Question text: text-sm md:text-base font-medium text-white
+       - Icon: ChevronDown or ChevronUp w-4 h-4 text-slate-400 flex-shrink-0
+     - Answer (animated with AnimatePresence + motion.div initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}} exit={{height:0,opacity:0}} transition={{duration:0.2}}):
+       - div pb-4 text-sm text-slate-400 leading-relaxed
+
+   FAQS array:
+   const faqs = [
+     {
+       q: "Kan ik op elk moment opzeggen?",
+       a: "Ja, u kunt uw abonnement op elk moment opzeggen. Bij maandelijkse facturatie stopt het abonnement aan het einde van de lopende maand. Bij jaarlijkse facturatie blijft u toegang houden tot het einde van de betaalde periode.",
+     },
+     {
+       q: "Wat houdt de setup-fee in?",
+       a: "De eenmalige setup-fee dekt de persoonlijke onboarding: we helpen u uw panden aanmaken, de studentenkoppeling configureren en zorgen dat alles correct werkt vóór de livegang. Voor het Growth-plan bedraagt dit €349, voor Pro €699.",
+     },
+     {
+       q: "Is de setup-fee echt gratis bij jaarlijkse facturatie?",
+       a: "Ja. Bij het afsluiten van een jaarplan is de setup-fee volledig inbegrepen. Dit is onze manier om u te belonen voor de langetermijncommitment.",
+     },
+     {
+       q: "Kan ik upgraden naar een hoger plan?",
+       a: "Absoluut. U kunt op elk moment upgraden. Het prijsverschil voor de resterende periode wordt pro-rata verrekend.",
+     },
+     {
+       q: "Wat als mijn aantal kamers de tierlimiet overschrijdt?",
+       a: "We nemen dan contact met u op om samen het meest geschikte plan te bespreken. U wordt nooit onverwacht afgeschakeld.",
+     },
+     {
+       q: "Is KotKlusser fiscaal aftrekbaar?",
+       a: "Ja. Als verhuurder kunt u KotKlusser beschouwen als een beroepskost voor het beheer van uw vastgoedportefeuille. Raadpleeg uw boekhouder voor de exacte fiscale verwerking in uw situatie.",
+     },
+     {
+       q: "Hoe werkt de studentonboarding?",
+       a: "Elke verhuurder krijgt een unieke koppelcode per pand. Studenten voeren deze code in bij registratie en zijn meteen gekoppeld aan het juiste pand en de juiste verdieping. Geen handmatige stappen nodig.",
+     },
+   ];
+
+6. CLOSING CTA SECTION
+   - py-20 px-4 sm:px-6 lg:px-8, max-w-4xl mx-auto
+   - Reuse exact CTA block from LandingPage: bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-8 md:p-12 with noise overlay
+   - Title: "Klaar om te starten?" — text-2xl md:text-3xl font-bold text-white
+   - Subtitle: "Registreer nu en zet uw eerste pand in minder dan 5 minuten op." — text-indigo-100 mt-4 max-w-lg mx-auto
+   - Two buttons:
+     - Link to="/register?role=landlord": Button size="lg" bg-white text-indigo-600 hover:bg-indigo-50 — "Gratis starten"
+     - Link to="/contact": Button size="lg" variant="outline" border-white text-white hover:bg-white/10 — "Neem contact op"
+
+--- FULL PAGE WRAPPER ---
+Return:
+<div className="min-h-screen bg-[#0B0A14]">
+  <LandingNav />
+  <main className="pt-16">
+    {/* hero */}
+    {/* pricing grid */}
+    {/* trust strip */}
+    {/* faq */}
+    {/* closing cta */}
+  </main>
+  <LandingFooter />
+</div>
+
+--- AFTER CREATING PricingPage.jsx ---
+
+Also update the following files:
+
+1. frontend/src/App.js
+   - Add import at top: import PricingPage from "./pages/PricingPage";
+   - Add route inside <Routes> before the closing </Routes>:
+     <Route path="/prijzen" element={<PageWrapper><PricingPage /></PageWrapper>} />
+
+2. frontend/src/components/LandingNav.jsx
+   - In the navLinks array, add after the "Demo" entry:
+     { label: "Prijzen", to: "/prijzen" }
+
+3. frontend/src/components/LandingFooter.jsx
+   - In the navigation links array, add after "Demo":
+     { label: "Prijzen", to: "/prijzen" }
+
+--- QUALITY CHECKS ---
+- All fadeUp animations applied to each major section (delay staggered per section)
+- data-testid attributes on: billing toggle button ("billing-toggle"), each plan card ("plan-card-{key}"), each CTA button ("cta-{key}"), each FAQ button ("faq-btn-{idx}")
+- No hardcoded colors outside the established palette
+- Mobile-first: on small screens the 4-col grid collapses to 1 col, cards stack vertically
+- No TypeScript — this is a .jsx file
+- No form tags — buttons use onClick or are wrapped in Link

@@ -26,6 +26,7 @@ import ConfirmEmail from "./pages/ConfirmEmail";
 import OverOnsPage from "./pages/OverOnsPage";
 import ContactPage from "./pages/ContactPage";
 import DemoPage from "./pages/DemoPage";
+import PricingPage from "./pages/PricingPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -289,6 +290,7 @@ function AppRoutes() {
         <Route path="/over-ons" element={<PageWrapper><OverOnsPage /></PageWrapper>} />
         <Route path="/contact" element={<PageWrapper><ContactPage /></PageWrapper>} />
         <Route path="/demo" element={<PageWrapper><DemoPage /></PageWrapper>} />
+        <Route path="/prijzen" element={<PageWrapper><PricingPage /></PageWrapper>} />
       </Routes>
     </AnimatePresence>
   );

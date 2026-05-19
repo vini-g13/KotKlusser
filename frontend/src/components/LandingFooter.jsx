@@ -37,6 +37,7 @@ const LandingFooter = () => {
                 { label: "Over ons", to: "/over-ons" },
                 { label: "Contact", to: "/contact" },
                 { label: "Demo", to: "/demo" },
+                { label: "Prijzen", to: "/prijzen" },
               ].map((link) => (
                 <Link
                   key={link.to}
