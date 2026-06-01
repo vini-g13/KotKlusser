@@ -81,6 +81,9 @@ class UserCreate(BaseModel):
     floor: Optional[str] = None
     plan: Optional[str] = None     # starter, growth, pro
     billing: Optional[str] = None  # monthly, yearly
+    invite_token: Optional[str] = None   # voor aannemer via uitnodiging
+    specialiteit: Optional[str] = None   # voor aannemer
+    regio: Optional[str] = None          # voor aannemer
 
 class CheckoutSessionRequest(BaseModel):
     plan: str
@@ -445,7 +448,19 @@ async def register(user: UserCreate):
     existing = await db.users.find_one({'email': user.email}, {'_id': 0})
     if existing:
         raise HTTPException(status_code=400, detail='Email is al geregistreerd')
-    
+
+    # Valideer invite_token als rol == 'aannemer'
+    verhuurder_id_from_invite = None
+    if user.role == 'aannemer' and user.invite_token:
+        invite = await db.aannemer_invites.find_one({
+            'token': user.invite_token,
+            'email': user.email,
+            'used': False
+        }, {'_id': 0})
+        if not invite:
+            raise HTTPException(status_code=400, detail='Ongeldige of verlopen uitnodigingslink')
+        verhuurder_id_from_invite = invite['verhuurder_id']
+
     user_id = str(uuid.uuid4())
     selected_plan = user.plan or 'starter'
     user_doc = {
@@ -465,7 +480,12 @@ async def register(user: UserCreate):
         'stripe_subscription_id': None,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
-    
+
+    if user.role == 'aannemer':
+        user_doc['specialiteit'] = user.specialiteit or ''
+        user_doc['regio'] = user.regio or ''
+        user_doc['verhuurder_ids'] = [verhuurder_id_from_invite] if verhuurder_id_from_invite else []
+
     # If student provides join code during registration
     property_name = None
     if user.role == 'student' and user.join_code:
@@ -480,7 +500,14 @@ async def register(user: UserCreate):
         property_name = prop['name']
     
     await db.users.insert_one(user_doc)
-    
+
+    # Markeer invite als gebruikt
+    if verhuurder_id_from_invite and user.invite_token:
+        await db.aannemer_invites.update_one(
+            {'token': user.invite_token},
+            {'$set': {'used': True}}
+        )
+
     # Check if landlord has properties
     has_property = False
     if user.role == 'landlord':
