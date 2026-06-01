@@ -1538,6 +1538,149 @@ async def mijn_aannemers(current_user: dict = Depends(get_current_user)):
     ]
 
 
+@api_router.post("/tickets/{ticket_id}/assign-aannemer")
+async def assign_aannemer(
+    ticket_id: str,
+    data: AssignAannemerRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get('role') != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers toewijzen')
+
+    ticket = await db.tickets.find_one({'id': ticket_id}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket niet gevonden')
+    if ticket.get('landlord_id') != current_user['id']:
+        raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+
+    aannemer = await db.users.find_one({'id': data.aannemer_id, 'role': 'aannemer'}, {'_id': 0})
+    if not aannemer:
+        raise HTTPException(status_code=404, detail='Aannemer niet gevonden')
+
+    # Koppel verhuurder aan aannemer indien nog niet
+    await db.users.update_one(
+        {'id': data.aannemer_id},
+        {'$addToSet': {'verhuurder_ids': current_user['id']}}
+    )
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tickets.update_one(
+        {'id': ticket_id},
+        {'$set': {
+            'aannemer_id': aannemer['id'],
+            'aannemer_naam': aannemer['name'],
+            'aannemer_specialiteit': aannemer.get('specialiteit', ''),
+            'aannemer_assigned_at': now,
+            'status': 'in_behandeling',
+            'updated_at': now
+        }}
+    )
+
+    # Notificatie naar aannemer
+    klus_url = f"{FRONTEND_URL}/aannemer/klus/{ticket_id}"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="background-color: #6366F1; padding: 24px; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Kot<span style="color: #c7d2fe;">Klusser</span></h1>
+        </div>
+        <div style="background-color: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+            <p>Dag {aannemer['name']},</p>
+            <p>Je hebt een nieuwe klus ontvangen van <strong>{current_user['name']}</strong>.</p>
+            <p><strong>Omschrijving:</strong> {ticket.get('description', '')[:200]}</p>
+            <p style="text-align: center; margin: 32px 0;">
+                <a href="{klus_url}" style="background-color: #6366F1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                    Bekijk de klus
+                </a>
+            </p>
+        </div>
+    </div>
+    """
+    await send_email_notification(aannemer['email'], 'Nieuwe klus toegewezen op KotKlusser', html_content)
+
+    return {'status': 'ok', 'bericht': 'Aannemer toegewezen'}
+
+
+@api_router.delete("/tickets/{ticket_id}/assign-aannemer")
+async def remove_aannemer(
+    ticket_id: str,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get('role') != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers verwijderen')
+
+    ticket = await db.tickets.find_one({'id': ticket_id}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Ticket niet gevonden')
+    if ticket.get('landlord_id') != current_user['id']:
+        raise HTTPException(status_code=403, detail='Geen toegang tot dit ticket')
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tickets.update_one(
+        {'id': ticket_id},
+        {'$unset': {'aannemer_id': '', 'aannemer_naam': '', 'aannemer_specialiteit': '', 'aannemer_assigned_at': ''},
+         '$set': {'updated_at': now}}
+    )
+    return {'status': 'ok'}
+
+
+@api_router.get("/aannemer/klussen")
+async def mijn_klussen(current_user: dict = Depends(get_current_user)):
+    if current_user.get('role') != 'aannemer':
+        raise HTTPException(status_code=403, detail='Alleen aannemers kunnen klussen ophalen')
+
+    klussen = await db.tickets.find(
+        {'aannemer_id': current_user['id']},
+        {'_id': 0}
+    ).sort('aannemer_assigned_at', -1).to_list(100)
+
+    result = []
+    for k in klussen:
+        pand_naam = k.get('property_name', '')
+        if not pand_naam and k.get('property_id'):
+            prop = await db.properties.find_one({'id': k['property_id']}, {'_id': 0, 'name': 1, 'address': 1})
+            if prop:
+                pand_naam = prop['name']
+
+        result.append({
+            'id': k['id'],
+            'ticket_number': k.get('ticket_number', ''),
+            'title': k.get('title', ''),
+            'description': k.get('description', ''),
+            'category': k.get('category', ''),
+            'status': k.get('status', ''),
+            'urgency': k.get('urgency', ''),
+            'pand_naam': pand_naam,
+            'location': k.get('location', ''),
+            'aannemer_assigned_at': k.get('aannemer_assigned_at'),
+        })
+    return result
+
+
+@api_router.patch("/aannemer/klussen/{ticket_id}/status")
+async def update_klus_status(
+    ticket_id: str,
+    data: AannemerStatusUpdate,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get('role') != 'aannemer':
+        raise HTTPException(status_code=403, detail='Alleen aannemers kunnen klus-status updaten')
+
+    geldige_statussen = ['in_behandeling', 'opgelost']
+    if data.status not in geldige_statussen:
+        raise HTTPException(status_code=400, detail=f'Ongeldige status. Kies uit: {geldige_statussen}')
+
+    ticket = await db.tickets.find_one({'id': ticket_id, 'aannemer_id': current_user['id']}, {'_id': 0})
+    if not ticket:
+        raise HTTPException(status_code=404, detail='Klus niet gevonden of geen toegang')
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tickets.update_one(
+        {'id': ticket_id},
+        {'$set': {'status': data.status, 'last_status_change': now, 'updated_at': now}}
+    )
+    return {'status': 'ok', 'nieuwe_status': data.status}
+
+
 # ============ TICKET ROUTES ============
 
 @api_router.post("/tickets", response_model=TicketResponse)
