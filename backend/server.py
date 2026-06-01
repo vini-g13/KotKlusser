@@ -1447,6 +1447,97 @@ async def leave_property(user: dict = Depends(get_current_user)):
     
     return {'message': 'Pand verlaten'}
 
+# ============ AANNEMERS ROUTES ============
+
+@api_router.post("/aannemers/invite")
+async def invite_aannemer(
+    data: AannemerInviteRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get('role') != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers uitnodigen')
+
+    # Bestaat aannemer al? Koppel dan direct.
+    bestaande = await db.users.find_one({'email': data.email, 'role': 'aannemer'}, {'_id': 0})
+    if bestaande:
+        await db.users.update_one(
+            {'id': bestaande['id']},
+            {'$addToSet': {'verhuurder_ids': current_user['id']}}
+        )
+        return {'status': 'gekoppeld', 'bericht': f'{bestaande["name"]} is gekoppeld aan jouw account'}
+
+    # Maak invite aan
+    token = secrets.token_urlsafe(32)
+    invite_id = str(uuid.uuid4())
+    await db.aannemer_invites.insert_one({
+        'id': invite_id,
+        'token': token,
+        'verhuurder_id': current_user['id'],
+        'verhuurder_naam': current_user['name'],
+        'email': data.email,
+        'naam': data.naam,
+        'specialiteit': data.specialiteit,
+        'used': False,
+        'created_at': datetime.now(timezone.utc).isoformat()
+    })
+
+    invite_url = f"{FRONTEND_URL}/registreer?token={token}&email={data.email}&rol=aannemer"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+        <div style="background-color: #6366F1; padding: 24px; border-radius: 8px 8px 0 0;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Kot<span style="color: #c7d2fe;">Klusser</span></h1>
+        </div>
+        <div style="background-color: #f9fafb; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+            <p>Dag {data.naam},</p>
+            <p><strong>{current_user['name']}</strong> nodigt je uit als aannemer op KotKlusser.</p>
+            <p style="text-align: center; margin: 32px 0;">
+                <a href="{invite_url}" style="background-color: #6366F1; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                    Account aanmaken
+                </a>
+            </p>
+            <p style="color: #94a3b8; font-size: 13px;">Deze link is éénmalig geldig.</p>
+        </div>
+    </div>
+    """
+    await send_email_notification(data.email, f'{current_user["name"]} nodigt je uit op KotKlusser', html_content)
+
+    return {'status': 'verstuurd', 'bericht': f'Uitnodiging verstuurd naar {data.email}'}
+
+
+@api_router.get("/aannemers/search")
+async def zoek_aannemers(
+    q: str,
+    current_user: dict = Depends(get_current_user)
+):
+    if current_user.get('role') != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers zoeken')
+    regex = {'$regex': q, '$options': 'i'}
+    resultaten = await db.users.find(
+        {'role': 'aannemer', '$or': [{'name': regex}, {'email': regex}]},
+        {'_id': 0, 'id': 1, 'name': 1, 'email': 1, 'specialiteit': 1, 'regio': 1}
+    ).limit(10).to_list(10)
+    return [
+        {'id': r['id'], 'naam': r['name'], 'email': r['email'],
+         'specialiteit': r.get('specialiteit', ''), 'regio': r.get('regio', '')}
+        for r in resultaten
+    ]
+
+
+@api_router.get("/aannemers/mijn-lijst")
+async def mijn_aannemers(current_user: dict = Depends(get_current_user)):
+    if current_user.get('role') != 'landlord':
+        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen hun aannemerslijst ophalen')
+    aannemers = await db.users.find(
+        {'role': 'aannemer', 'verhuurder_ids': current_user['id']},
+        {'_id': 0, 'id': 1, 'name': 1, 'email': 1, 'specialiteit': 1, 'regio': 1}
+    ).to_list(100)
+    return [
+        {'id': a['id'], 'naam': a['name'], 'email': a['email'],
+         'specialiteit': a.get('specialiteit', ''), 'regio': a.get('regio', '')}
+        for a in aannemers
+    ]
+
+
 # ============ TICKET ROUTES ============
 
 @api_router.post("/tickets", response_model=TicketResponse)
