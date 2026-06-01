@@ -3,6 +3,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+import stripe
 import os
 import logging
 import asyncio
@@ -25,6 +26,8 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+# Collections: db.users, db.tickets, db.properties, db.refresh_tokens,
+#              db.contact_submissions, db.aannemer_invites (nieuw)
 
 # JWT Config
 JWT_SECRET = os.environ.get('JWT_SECRET', 'kotmelding-secret-key-2024')
@@ -43,6 +46,18 @@ SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
 
 # App URL for join links
 APP_URL = os.environ.get('APP_URL', 'https://kot-quick.preview.emergentagent.com')
+FRONTEND_URL = os.environ.get('FRONTEND_URL', APP_URL)
+
+# Stripe Config
+STRIPE_SECRET_KEY = os.environ.get('STRIPE_SECRET_KEY', 'sk_test_PLACEHOLDER')
+STRIPE_WEBHOOK_SECRET = os.environ.get('STRIPE_WEBHOOK_SECRET', 'whsec_PLACEHOLDER')
+STRIPE_PRICE_IDS = {
+    'growth_monthly': os.environ.get('STRIPE_PRICE_GROWTH_MONTHLY', 'price_GROWTH_MONTHLY_PLACEHOLDER'),
+    'growth_yearly':  os.environ.get('STRIPE_PRICE_GROWTH_YEARLY',  'price_GROWTH_YEARLY_PLACEHOLDER'),
+    'pro_monthly':    os.environ.get('STRIPE_PRICE_PRO_MONTHLY',    'price_PRO_MONTHLY_PLACEHOLDER'),
+    'pro_yearly':     os.environ.get('STRIPE_PRICE_PRO_YEARLY',     'price_PRO_YEARLY_PLACEHOLDER'),
+}
+stripe.api_key = STRIPE_SECRET_KEY
 
 # Create the main app
 app = FastAPI(title="KotKlusser API")
@@ -64,6 +79,12 @@ class UserCreate(BaseModel):
     join_code: Optional[str] = None  # For students joining a property
     room_number: Optional[str] = None
     floor: Optional[str] = None
+    plan: Optional[str] = None     # starter, growth, pro
+    billing: Optional[str] = None  # monthly, yearly
+
+class CheckoutSessionRequest(BaseModel):
+    plan: str
+    billing: str
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -221,6 +242,17 @@ class MessageResponse(BaseModel):
     sender_role: str
     content: str
     created_at: str
+
+class AannemerInviteRequest(BaseModel):
+    email: EmailStr
+    naam: str
+    specialiteit: str = ""
+
+class AssignAannemerRequest(BaseModel):
+    aannemer_id: str
+
+class AannemerStatusUpdate(BaseModel):
+    status: str  # 'in_behandeling' of 'opgelost'
 
 # ============ HELPER FUNCTIONS ============
 
@@ -415,6 +447,7 @@ async def register(user: UserCreate):
         raise HTTPException(status_code=400, detail='Email is al geregistreerd')
     
     user_id = str(uuid.uuid4())
+    selected_plan = user.plan or 'starter'
     user_doc = {
         'id': user_id,
         'email': user.email,
@@ -425,6 +458,11 @@ async def register(user: UserCreate):
         'property_id': None,
         'room_number': None,
         'floor': None,
+        'plan': selected_plan,
+        'billing': user.billing or 'monthly',
+        'subscription_status': 'active' if selected_plan == 'starter' else 'pending',
+        'stripe_customer_id': None,
+        'stripe_subscription_id': None,
         'created_at': datetime.now(timezone.utc).isoformat()
     }
     
@@ -1911,6 +1949,71 @@ async def cron_send_followups(request: Request):
 
     await send_followup_emails()
     return {"message": "Follow-up emails processed successfully"}
+
+
+# ============ STRIPE PAYMENTS ============
+
+@api_router.post("/payments/create-checkout-session")
+async def create_checkout_session(body: CheckoutSessionRequest, current_user: dict = Depends(get_current_user)):
+    price_key = f"{body.plan}_{body.billing}"
+    price_id = STRIPE_PRICE_IDS.get(price_key)
+    if not price_id:
+        raise HTTPException(status_code=400, detail='Ongeldig plan of factuurcyclus')
+
+    try:
+        session = await asyncio.to_thread(
+            stripe.checkout.Session.create,
+            payment_method_types=['card'],
+            line_items=[{'price': price_id, 'quantity': 1}],
+            mode='subscription',
+            success_url=f"{FRONTEND_URL}/betaling/succes?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{FRONTEND_URL}/betaling/geannuleerd",
+            customer_email=current_user['email'],
+            metadata={
+                'user_id': current_user['id'],
+                'plan': body.plan,
+                'billing': body.billing,
+            },
+        )
+        return {'checkout_url': session.url}
+    except Exception as e:
+        logger.error(f"Stripe checkout session error: {e}")
+        raise HTTPException(status_code=500, detail='Betaling kon niet gestart worden')
+
+
+@api_router.post("/payments/webhook")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get('stripe-signature', '')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except ValueError:
+        raise HTTPException(status_code=400, detail='Ongeldig payload')
+    except Exception:
+        raise HTTPException(status_code=400, detail='Ongeldige handtekening')
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        meta = session.get('metadata') or {}
+        user_id = meta.get('user_id')
+        plan = meta.get('plan')
+        billing = meta.get('billing')
+
+        if user_id:
+            await db.users.update_one(
+                {'id': user_id},
+                {'$set': {
+                    'plan': plan,
+                    'billing': billing,
+                    'subscription_status': 'active',
+                    'stripe_customer_id': session.get('customer'),
+                    'stripe_subscription_id': session.get('subscription'),
+                }}
+            )
+            logger.info(f"Plan activated for user {user_id}: {plan} ({billing})")
+
+    return {'status': 'ok'}
 
 
 # Health check
