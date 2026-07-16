@@ -32,9 +32,9 @@ const locations = [
 ];
 
 const urgencyLevels = [
-  { id: 'laag', name: 'Laag', description: 'Kan wachten', color: 'bg-slate-500' },
-  { id: 'normaal', name: 'Normaal', description: 'Binnen een week', color: 'bg-blue-500' },
-  { id: 'hoog', name: 'Hoog', description: 'Zo snel mogelijk', color: 'bg-orange-500' },
+  { id: 'low', name: 'Laag', description: 'Kan wachten', color: 'bg-slate-500' },
+  { id: 'normal', name: 'Normaal', description: 'Binnen een week', color: 'bg-blue-500' },
+  { id: 'high', name: 'Hoog', description: 'Zo snel mogelijk', color: 'bg-orange-500' },
   { id: 'urgent', name: 'Urgent', description: 'Onmiddellijk actie nodig', color: 'bg-red-500' }
 ];
 
@@ -46,7 +46,7 @@ const NewReport = () => {
   const [formData, setFormData] = useState({
     category: '',
     location: '',
-    urgency: 'normaal',
+    urgency: 'normal',
     title: '',
     description: '',
     photos: []

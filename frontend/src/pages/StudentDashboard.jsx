@@ -27,10 +27,10 @@ const categoryIcons = {
 };
 
 const statusLabels = {
-  verstuurd: "Verstuurd",
-  ontvangen: "Ontvangen",
-  in_behandeling: "In Behandeling",
-  opgelost: "Opgelost"
+  sent: "Verstuurd",
+  received: "Ontvangen",
+  in_progress: "In Behandeling",
+  resolved: "Opgelost"
 };
 
 const StudentDashboard = () => {
@@ -122,8 +122,8 @@ const StudentDashboard = () => {
       ticket.ticket_number.toLowerCase().includes(searchQuery.toLowerCase())
     )
     .sort((a, b) => {
-      const aResolved = a.status === 'opgelost' ? 1 : 0;
-      const bResolved = b.status === 'opgelost' ? 1 : 0;
+      const aResolved = a.status === 'resolved' ? 1 : 0;
+      const bResolved = b.status === 'resolved' ? 1 : 0;
       if (aResolved !== bResolved) return aResolved - bResolved;
 
       const aUnread = studentUnread[a.id];
@@ -135,8 +135,8 @@ const StudentDashboard = () => {
       return new Date(b.created_at) - new Date(a.created_at);
     });
 
-  const openTickets = tickets.filter(t => t.status !== 'opgelost').length;
-  const resolvedTickets = tickets.filter(t => t.status === 'opgelost').length;
+  const openTickets = tickets.filter(t => t.status !== 'resolved').length;
+  const resolvedTickets = tickets.filter(t => t.status === 'resolved').length;
 
   return (
     <div className="min-h-screen bg-[#0B0A14]">

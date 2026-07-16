@@ -6,18 +6,25 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
+
+const PLAN_LABELS = { growth: "Growth", pro: "Pro" };
+const BILLING_LABELS = { monthly: "Maandelijks", yearly: "Jaarlijks" };
 
 const RegisterPage = () => {
   const [searchParams] = useSearchParams();
   const defaultRole = searchParams.get('role') || 'student';
   const joinCode = searchParams.get('join') || '';
-  
+  const selectedPlan = searchParams.get('plan') || '';
+  const selectedBilling = searchParams.get('billing') || 'monthly';
+  const inviteToken = searchParams.get('token') || '';
+  const prefillEmail = searchParams.get('email') || '';
+
   const [formData, setFormData] = useState({
     name: "",
-    email: "",
+    email: prefillEmail,
     password: "",
     phone: "",
     role: defaultRole,
@@ -62,22 +69,44 @@ const RegisterPage = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate student with join code
+
     if (formData.role === 'student' && formData.join_code) {
       if (!formData.room_number || !formData.floor) {
         toast.error("Vul uw kamernummer en verdieping in");
         return;
       }
     }
-    
+
     setLoading(true);
-    
+
     try {
-      const user = await register(formData);
+      const submitData = { ...formData };
+      if (selectedPlan) {
+        submitData.plan = selectedPlan;
+        submitData.billing = selectedBilling;
+      }
+      if (inviteToken) {
+        submitData.invite_token = inviteToken;
+      }
+
+      const { user, token: authToken } = await register(submitData);
       toast.success(`Welkom, ${user.name}! Account succesvol aangemaakt.`);
-      
-      if (user.role === 'landlord') {
+
+      if (selectedPlan && selectedPlan !== 'starter') {
+        try {
+          const response = await axios.post(
+            `${API}/payments/create-checkout-session`,
+            { plan: selectedPlan, billing: selectedBilling },
+            { headers: { Authorization: `Bearer ${authToken}` } }
+          );
+          window.location.href = response.data.checkout_url;
+        } catch {
+          toast.error("Betaling starten mislukt. Neem contact op via contact@kotklusser.be.");
+          navigate(user.has_property ? '/verhuurder' : '/onboarding/pand');
+        }
+      } else if (user.role === 'contractor') {
+        navigate('/aannemer');
+      } else if (user.role === 'landlord') {
         navigate(user.has_property ? '/verhuurder' : '/onboarding/pand');
       } else {
         navigate('/dashboard');
@@ -124,6 +153,20 @@ const RegisterPage = () => {
           <p className="text-slate-400 mb-6">
             Begin vandaag nog met het melden van defecten
           </p>
+
+          {selectedPlan && selectedPlan !== 'starter' && (
+            <div className="flex items-start gap-3 bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-3 mb-6">
+              <CreditCard className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-indigo-300">
+                  {PLAN_LABELS[selectedPlan] || selectedPlan} plan · {BILLING_LABELS[selectedBilling] || selectedBilling}
+                </p>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Na registratie wordt u doorgestuurd naar de beveiligde betaalpagina.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Role selector */}
           <div className="flex gap-2 mb-6">
@@ -325,8 +368,10 @@ const RegisterPage = () => {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Account aanmaken...
+                  {selectedPlan && selectedPlan !== 'starter' ? "Doorsturen naar betaling..." : "Account aanmaken..."}
                 </span>
+              ) : selectedPlan && selectedPlan !== 'starter' ? (
+                "Registreren & betalen"
               ) : (
                 "Registreren"
               )}

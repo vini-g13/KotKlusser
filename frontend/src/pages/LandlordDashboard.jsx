@@ -28,10 +28,10 @@ const categoryIcons = {
 };
 
 const statusLabels = {
-  verstuurd: "Verstuurd",
-  ontvangen: "Ontvangen",
-  in_behandeling: "In Behandeling",
-  opgelost: "Opgelost"
+  sent: "Verstuurd",
+  received: "Ontvangen",
+  in_progress: "In Behandeling",
+  resolved: "Opgelost"
 };
 
 const TILE_DEFINITIONS = {
@@ -201,26 +201,26 @@ const LandlordDashboard = () => {
 
   const tileStats = {
     total: tickets.length,
-    open: tickets.filter(t => t.status !== 'opgelost').length,
+    open: tickets.filter(t => t.status !== 'resolved').length,
     urgent: tickets.filter(t => t.urgency === 'urgent').length,
-    resolved: tickets.filter(t => t.status === 'opgelost').length,
-    sent: tickets.filter(t => t.status === 'verstuurd').length,
-    received: tickets.filter(t => t.status === 'ontvangen').length,
-    in_progress: tickets.filter(t => t.status === 'in behandeling').length,
-    high: tickets.filter(t => t.urgency === 'hoog').length,
+    resolved: tickets.filter(t => t.status === 'resolved').length,
+    sent: tickets.filter(t => t.status === 'sent').length,
+    received: tickets.filter(t => t.status === 'received').length,
+    in_progress: tickets.filter(t => t.status === 'in_progress').length,
+    high: tickets.filter(t => t.urgency === 'high').length,
     unread: tickets.filter(t => (unreadCounts[t.id] || 0) > 0).length,
   };
 
   const getTileFilterFn = (key) => {
     const fns = {
       total: () => true,
-      open: t => t.status !== 'opgelost',
+      open: t => t.status !== 'resolved',
       urgent: t => t.urgency === 'urgent',
-      resolved: t => t.status === 'opgelost',
-      sent: t => t.status === 'verstuurd',
-      received: t => t.status === 'ontvangen',
-      in_progress: t => t.status === 'in behandeling',
-      high: t => t.urgency === 'hoog',
+      resolved: t => t.status === 'resolved',
+      sent: t => t.status === 'sent',
+      received: t => t.status === 'received',
+      in_progress: t => t.status === 'in_progress',
+      high: t => t.urgency === 'high',
       unread: t => (unreadCounts[t.id] || 0) > 0,
     };
     return fns[key] || (() => true);
@@ -245,8 +245,8 @@ const LandlordDashboard = () => {
     )
     .filter(ticket => activeTileKey ? getTileFilterFn(activeTileKey)(ticket) : true)
     .sort((a, b) => {
-      const aResolved = a.status === 'opgelost' ? 1 : 0;
-      const bResolved = b.status === 'opgelost' ? 1 : 0;
+      const aResolved = a.status === 'resolved' ? 1 : 0;
+      const bResolved = b.status === 'resolved' ? 1 : 0;
       if (aResolved !== bResolved) return aResolved - bResolved;
       return 0;
     });
@@ -782,10 +782,10 @@ const LandlordDashboard = () => {
                   </SelectTrigger>
                   <SelectContent className="bg-[#161425] border-white/10">
                     <SelectItem value="all">Alle status</SelectItem>
-                    <SelectItem value="verstuurd">Verstuurd</SelectItem>
-                    <SelectItem value="ontvangen">Ontvangen</SelectItem>
-                    <SelectItem value="in_behandeling">In Behandeling</SelectItem>
-                    <SelectItem value="opgelost">Opgelost</SelectItem>
+                    <SelectItem value="sent">Verstuurd</SelectItem>
+                    <SelectItem value="received">Ontvangen</SelectItem>
+                    <SelectItem value="in_progress">In Behandeling</SelectItem>
+                    <SelectItem value="resolved">Opgelost</SelectItem>
                   </SelectContent>
                 </Select>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
@@ -809,9 +809,9 @@ const LandlordDashboard = () => {
                   <SelectContent className="bg-[#161425] border-white/10">
                     <SelectItem value="all">Alle</SelectItem>
                     <SelectItem value="urgent">Urgent</SelectItem>
-                    <SelectItem value="hoog">Hoog</SelectItem>
-                    <SelectItem value="normaal">Normaal</SelectItem>
-                    <SelectItem value="laag">Laag</SelectItem>
+                    <SelectItem value="high">Hoog</SelectItem>
+                    <SelectItem value="normal">Normaal</SelectItem>
+                    <SelectItem value="low">Laag</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -840,8 +840,8 @@ const LandlordDashboard = () => {
                 <div className="divide-y divide-white/5">
                   {(() => {
                     const sortedTickets = [...filteredTickets].sort((a, b) => {
-                      const aResolved = a.status === 'opgelost' ? 1 : 0;
-                      const bResolved = b.status === 'opgelost' ? 1 : 0;
+                      const aResolved = a.status === 'resolved' ? 1 : 0;
+                      const bResolved = b.status === 'resolved' ? 1 : 0;
                       if (aResolved !== bResolved) return aResolved - bResolved;
                       const aUnread = unreadCounts[a.id] || 0;
                       const bUnread = unreadCounts[b.id] || 0;

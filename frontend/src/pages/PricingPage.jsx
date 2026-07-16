@@ -43,7 +43,7 @@ const plans = [
     setupFee: 349,
     featured: true,
     cta: "Plan starten",
-    ctaLink: "/contact",
+    ctaLink: null,
     features: [
       "Tot 50 kamers",
       "Meerdere gebouwen",
@@ -66,7 +66,7 @@ const plans = [
     setupFee: 699,
     featured: false,
     cta: "Plan starten",
-    ctaLink: "/contact",
+    ctaLink: null,
     features: [
       "Tot 150 kamers",
       "Alles uit Growth",
@@ -134,6 +134,12 @@ const faqs = [
 const PricingPage = () => {
   const [isYearly, setIsYearly] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
+
+  const getPlanLink = (plan) => {
+    if (plan.key === "starter") return "/register?role=landlord";
+    if (plan.key === "enterprise") return "/contact";
+    return `/register?role=landlord&plan=${plan.key}&billing=${isYearly ? "yearly" : "monthly"}`;
+  };
 
   return (
     <div className="min-h-screen bg-[#0B0A14]">
@@ -268,7 +274,7 @@ const PricingPage = () => {
                     ))}
                   </ul>
 
-                  <Link to={plan.ctaLink}>
+                  <Link to={getPlanLink(plan)}>
                     <Button
                       data-testid={`cta-${plan.key}`}
                       className={`w-full ${

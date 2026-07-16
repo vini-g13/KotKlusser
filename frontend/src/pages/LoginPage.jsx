@@ -24,7 +24,8 @@ const LoginPage = () => {
     try {
       const user = await login(email, password);
       toast.success(`Welkom terug, ${user.name}!`);
-      const from = location.state?.from?.pathname || (user.role === 'landlord' ? '/verhuurder' : '/dashboard');
+      const defaultPath = user.role === 'landlord' ? '/verhuurder' : user.role === 'contractor' ? '/aannemer' : '/dashboard';
+      const from = location.state?.from?.pathname || defaultPath;
       navigate(from, { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.detail || "Inloggen mislukt");

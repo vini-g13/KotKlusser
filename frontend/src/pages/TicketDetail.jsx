@@ -12,7 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, Image, X,
-  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check, Bell
+  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check, Bell,
+  Search, UserPlus, UserMinus, HardHat
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -28,12 +29,12 @@ const categoryIcons = {
 };
 
 const statusLabels = {
-  verstuurd: "Verstuurd",
-  ontvangen: "Ontvangen",
-  in_behandeling: "In Behandeling",
-  opgelost: "Opgelost"
+  sent: "Verstuurd",
+  received: "Ontvangen",
+  in_progress: "In Behandeling",
+  resolved: "Opgelost"
 };
-const statusOrder = ['verstuurd', 'ontvangen', 'in_behandeling', 'opgelost'];
+const statusOrder = ['sent', 'received', 'in_progress', 'resolved'];
 
 const TicketDetail = () => {
   const { id } = useParams();
@@ -51,6 +52,10 @@ const TicketDetail = () => {
   const [scheduledDate, setScheduledDate] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
+  const [aannemerSearch, setAannemerSearch] = useState("");
+  const [aannemerResults, setAannemerResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [assignLoading, setAssignLoading] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -172,6 +177,48 @@ const TicketDetail = () => {
       toast.error(error.response?.data?.detail || "Kon herinnering niet versturen");
     } finally {
       setSendingReminder(false);
+    }
+  };
+
+  const handleSearchAannemers = async (q) => {
+    setAannemerSearch(q);
+    if (q.length < 2) { setAannemerResults([]); return; }
+    setSearchLoading(true);
+    try {
+      const res = await authAxios.get(`/contractors/search?q=${encodeURIComponent(q)}`);
+      setAannemerResults(res.data);
+    } catch {
+      setAannemerResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const handleAssignAannemer = async (aannemer) => {
+    setAssignLoading(true);
+    try {
+      await authAxios.post(`/tickets/${id}/assign-contractor`, { contractor_id: aannemer.id });
+      setTicket(prev => ({ ...prev, assigned_to: aannemer.id, assigned_to_name: aannemer.name, assigned_to_specialty: aannemer.specialty }));
+      setAannemerSearch("");
+      setAannemerResults([]);
+      toast.success(`${aannemer.name} toegewezen`);
+    } catch {
+      toast.error("Toewijzen mislukt");
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleRemoveAannemer = async () => {
+    setAssignLoading(true);
+    try {
+      await authAxios.delete(`/tickets/${id}/assign-contractor`);
+      setTicket(prev => ({ ...prev, assigned_to: null, assigned_to_name: null, assigned_to_specialty: null }));
+      toast.success("Aannemer verwijderd");
+    } catch {
+      toast.error("Verwijderen mislukt");
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -362,7 +409,7 @@ const TicketDetail = () => {
               </div>
             )}
 
-            {user?.role === 'student' && ticket.status !== 'opgelost' && (
+            {user?.role === 'student' && ticket.status !== 'resolved' && (
               <>
                 <div className="border-t border-white/5 pt-6">
                   <Button
@@ -423,10 +470,10 @@ const TicketDetail = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#161425] border-white/10">
-                        <SelectItem value="verstuurd">Verstuurd</SelectItem>
-                        <SelectItem value="ontvangen">Ontvangen</SelectItem>
-                        <SelectItem value="in_behandeling">In Behandeling</SelectItem>
-                        <SelectItem value="opgelost">Opgelost</SelectItem>
+                        <SelectItem value="sent">Verstuurd</SelectItem>
+                        <SelectItem value="received">Ontvangen</SelectItem>
+                        <SelectItem value="in_progress">In Behandeling</SelectItem>
+                        <SelectItem value="resolved">Opgelost</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -470,6 +517,76 @@ const TicketDetail = () => {
                       data-testid="landlord-photo-input"
                     />
                   </label>
+                </div>
+
+                {/* Aannemer toewijzen */}
+                <div className="border-t border-white/5 pt-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <HardHat className="w-4 h-4 text-slate-400" />
+                    <p className="text-sm text-slate-400">Aannemer</p>
+                  </div>
+
+                  {ticket.assigned_to_name ? (
+                    <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-4 py-3">
+                      <div>
+                        <p className="text-sm font-medium text-white">{ticket.assigned_to_name}</p>
+                        {ticket.assigned_to_specialty && (
+                          <p className="text-xs text-slate-400 mt-0.5">{ticket.assigned_to_specialty}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={handleRemoveAannemer}
+                        disabled={assignLoading}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-red-400 transition-colors"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                        Verwijderen
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <input
+                          type="text"
+                          value={aannemerSearch}
+                          onChange={(e) => handleSearchAannemers(e.target.value)}
+                          placeholder="Zoek op naam of e-mail..."
+                          className="w-full pl-9 pr-4 py-2.5 bg-[#1C1A2E] border border-white/10 rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
+                        />
+                        {searchLoading && (
+                          <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                        )}
+                      </div>
+
+                      {aannemerResults.length > 0 && (
+                        <div className="absolute z-10 w-full mt-1 bg-[#1C1A2E] border border-white/10 rounded-lg overflow-hidden shadow-xl">
+                          {aannemerResults.map((a) => (
+                            <button
+                              key={a.id}
+                              onClick={() => handleAssignAannemer(a)}
+                              disabled={assignLoading}
+                              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
+                            >
+                              <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                                <UserPlus className="w-4 h-4 text-indigo-400" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm text-white font-medium">{a.name}</p>
+                                <p className="text-xs text-slate-400 truncate">{a.specialty || a.email}</p>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+
+                      {aannemerSearch.length >= 2 && !searchLoading && aannemerResults.length === 0 && (
+                        <p className="text-xs text-slate-500 mt-2 px-1">
+                          Geen aannemers gevonden. Nodig er één uit via het profielscherm.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from
 import axios from "axios";
 import { Toaster, toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { supabase } from "./lib/supabaseClient";
 
 // Components
 import SessionExpiredScreen from "./components/SessionExpiredScreen";
@@ -27,6 +28,10 @@ import OverOnsPage from "./pages/OverOnsPage";
 import ContactPage from "./pages/ContactPage";
 import DemoPage from "./pages/DemoPage";
 import PricingPage from "./pages/PricingPage";
+import PaymentSuccessPage from "./pages/PaymentSuccessPage";
+import PaymentCancelPage from "./pages/PaymentCancelPage";
+import AannemerDashboard from "./pages/AannemerDashboard";
+import AannemerKlusDetail from "./pages/AannemerKlusDetail";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -36,99 +41,128 @@ const AuthContext = createContext(null);
 
 export const useAuth = () => useContext(AuthContext);
 
+// Cleanup sprint 5 (2026-07, kotklusser-cleanup-plan.md sectie 6.1): deze
+// AuthProvider praatte voorheen met de eigen backend voor /auth/register,
+// /auth/login, /auth/refresh en /auth/logout (custom JWT + refresh_token in
+// localStorage). Dat is nu Supabase Auth via supabase-js: sessieopslag en
+// automatisch verversen van tokens gebeurt door de Supabase-client zelf
+// (zie lib/supabaseClient.js), niet meer handmatig hier. `token` hieronder is
+// dus altijd het huidige Supabase access token, opgehaald uit de actieve sessie.
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(null); // access token in memory only
+  const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
+  const fetchProfile = async (accessToken) => {
+    try {
+      const response = await axios.get(`${API}/auth/me`, {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      setUser(response.data);
+      return response.data;
+    } catch (e) {
+      // Profiel bestaat nog niet (bv. tussen signUp() en complete-registration,
+      // of tijdens het tweede registratiestap zelf) — geen hard falen hier.
+      console.error("Failed to fetch profile", e);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    const initAuth = async () => {
-      const storedRefreshToken = localStorage.getItem('refresh_token');
-      if (storedRefreshToken) {
-        try {
-          const response = await axios.post(`${API}/auth/refresh`, { refresh_token: storedRefreshToken });
-          setToken(response.data.token);
-          setUser(response.data.user);
-        } catch (e) {
-          localStorage.removeItem('refresh_token');
-          setToken(null);
-          setUser(null);
-          setSessionExpired(true);
-        }
+    let mounted = true;
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
+      if (session) {
+        setToken(session.access_token);
+        await fetchProfile(session.access_token);
       }
       setLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+      if (session) {
+        setToken(session.access_token);
+        if (event !== 'TOKEN_REFRESHED') {
+          await fetchProfile(session.access_token);
+        }
+      } else {
+        setToken(null);
+        setUser(null);
+        if (event === 'SIGNED_OUT') {
+          // onAuthStateChange vuurt ook SIGNED_OUT na een expliciete logout()
+          // hieronder — sessionExpired hoort dan niet aangezet te worden, dat
+          // doen we expliciet enkel bij een mislukte token-refresh (zie
+          // supabaseClient.js: autoRefreshToken faalt stil, de sessie wordt
+          // dan gewoon null via deze listener).
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
     };
-    initAuth();
   }, []);
 
   const login = async (email, password) => {
-    const response = await axios.post(`${API}/auth/login`, { email, password });
-    localStorage.setItem('refresh_token', response.data.refresh_token);
-    setToken(response.data.token);
-    setUser(response.data.user);
-    return response.data.user;
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw { response: { data: { detail: error.message } } };
+    }
+    setToken(data.session.access_token);
+    const profile = await fetchProfile(data.session.access_token);
+    return profile;
   };
 
+  // Two-step registratie (zie backend server.py, sectie AUTH ROUTES): eerst
+  // supabase.auth.signUp() clientside (maakt de auth.users-rij aan), daarna
+  // POST /api/profile/complete-registration met de verse sessietoken (maakt
+  // de profiles-rij aan met rol/pand-koppeling/invite-validatie — dat vereist
+  // servervalidatie tegen andere gebruikers/panden en kan niet clientside).
   const register = async (data) => {
-    const response = await axios.post(`${API}/auth/register`, data);
-    if (response.data.refresh_token) {
-      localStorage.setItem('refresh_token', response.data.refresh_token);
+    const { email, password, ...profileData } = data;
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+    if (signUpError) {
+      throw { response: { data: { detail: signUpError.message } } };
     }
-    setToken(response.data.token);
-    setUser(response.data.user);
-    return response.data.user;
+
+    const accessToken = signUpData.session?.access_token;
+    if (!accessToken) {
+      // Kan gebeuren als "Confirm email" aanstaat in het Supabase-dashboard —
+      // dan is er nog geen sessie tot de gebruiker de bevestigingsmail volgt.
+      throw {
+        response: {
+          data: {
+            detail: 'Account aangemaakt, maar nog geen actieve sessie. Bevestig uw e-mailadres en log in.'
+          }
+        }
+      };
+    }
+
+    setToken(accessToken);
+    const response = await axios.post(
+      `${API}/profile/complete-registration`,
+      profileData,
+      { headers: { Authorization: `Bearer ${accessToken}` } }
+    );
+    setUser(response.data);
+    return { user: response.data, token: accessToken };
   };
 
   const logout = async () => {
-    const storedRefreshToken = localStorage.getItem('refresh_token');
-    if (storedRefreshToken) {
-      try {
-        await axios.post(`${API}/auth/logout`, { refresh_token: storedRefreshToken });
-      } catch (e) {
-        // ignore errors on logout
-      }
-    }
-    localStorage.removeItem('refresh_token');
+    await supabase.auth.signOut();
     setToken(null);
     setUser(null);
-  };
-
-  const refreshAccessToken = async () => {
-    const storedRefreshToken = localStorage.getItem('refresh_token');
-    if (!storedRefreshToken) {
-      setUser(null);
-      setToken(null);
-      setSessionExpired(true);
-      return null;
-    }
-    try {
-      const response = await axios.post(`${API}/auth/refresh`, { refresh_token: storedRefreshToken });
-      setToken(response.data.token);
-      setUser(response.data.user);
-      return response.data.token;
-    } catch (e) {
-      localStorage.removeItem('refresh_token');
-      setUser(null);
-      setToken(null);
-      setSessionExpired(true);
-      return null;
-    }
   };
 
   const clearSessionExpired = () => setSessionExpired(false);
 
   const refreshUser = async () => {
     if (token) {
-      try {
-        const response = await axios.get(`${API}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(response.data);
-        return response.data;
-      } catch (e) {
-        console.error("Failed to refresh user", e);
-      }
+      return await fetchProfile(token);
     }
     return null;
   };
@@ -143,18 +177,23 @@ const AuthProvider = ({ children }) => {
     async (error) => {
       if (error.response?.status === 401 && !error.config._retry) {
         error.config._retry = true;
-        const newToken = await refreshAccessToken();
-        if (newToken) {
-          error.config.headers['Authorization'] = `Bearer ${newToken}`;
+        // supabase-js ververst het access token zelf op de achtergrond
+        // (autoRefreshToken: true); we vragen hier gewoon de actuele sessie op
+        // i.p.v. zelf een refresh-call te doen.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          setToken(session.access_token);
+          error.config.headers['Authorization'] = `Bearer ${session.access_token}`;
           return axios(error.config);
         }
+        setSessionExpired(true);
       }
       return Promise.reject(error);
     }
   );
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, sessionExpired, login, register, logout, refreshUser, refreshAccessToken, clearSessionExpired, authAxios }}>
+    <AuthContext.Provider value={{ user, token, loading, sessionExpired, login, register, logout, refreshUser, clearSessionExpired, authAxios }}>
       {children}
     </AuthContext.Provider>
   );
@@ -178,7 +217,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   }
 
   if (allowedRoles && !allowedRoles.includes(user.role)) {
-    return <Navigate to={user.role === 'landlord' ? '/verhuurder' : '/dashboard'} replace />;
+    const fallback = user.role === 'landlord' ? '/verhuurder' : user.role === 'contractor' ? '/aannemer' : '/dashboard';
+    return <Navigate to={fallback} replace />;
   }
 
   return children;
@@ -291,6 +331,18 @@ function AppRoutes() {
         <Route path="/contact" element={<PageWrapper><ContactPage /></PageWrapper>} />
         <Route path="/demo" element={<PageWrapper><DemoPage /></PageWrapper>} />
         <Route path="/prijzen" element={<PageWrapper><PricingPage /></PageWrapper>} />
+        <Route path="/betaling/succes" element={<PageWrapper><PaymentSuccessPage /></PageWrapper>} />
+        <Route path="/betaling/geannuleerd" element={<PageWrapper><PaymentCancelPage /></PageWrapper>} />
+        <Route path="/aannemer" element={
+          <ProtectedRoute allowedRoles={['contractor']}>
+            <AannemerDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="/aannemer/klus/:ticket_id" element={
+          <ProtectedRoute allowedRoles={['contractor']}>
+            <AannemerKlusDetail />
+          </ProtectedRoute>
+        } />
       </Routes>
     </AnimatePresence>
   );

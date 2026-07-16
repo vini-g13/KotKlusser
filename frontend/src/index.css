@@ -96,32 +96,29 @@ code {
 }
 
 /* Status badge colors */
-.status-ontvangen {
+/* Cleanup sprint 5 (2026-07): klassen hernoemd van NL naar EN om te matchen met
+   de nieuwe backend-enumwaarden (verstuurd/ontvangen/in_behandeling/opgelost ->
+   sent/received/in_progress/resolved; hoog/normaal/laag -> high/normal/low). */
+.status-sent {
     background: rgba(100, 116, 139, 0.15);
     color: #94A3B8;
     border: 1px solid rgba(100, 116, 139, 0.3);
 }
 
-.status-in_behandeling {
+.status-received {
+    background: rgba(100, 116, 139, 0.15);
+    color: #94A3B8;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+}
+
+.status-in_progress {
     background: rgba(59, 130, 246, 0.15);
     color: #60A5FA;
     border: 1px solid rgba(59, 130, 246, 0.3);
-}
-
-.status-ingepland {
-    background: rgba(139, 92, 246, 0.15);
-    color: #A78BFA;
-    border: 1px solid rgba(139, 92, 246, 0.3);
-}
-
-.status-in_uitvoering {
-    background: rgba(168, 85, 247, 0.15);
-    color: #C084FC;
-    border: 1px solid rgba(168, 85, 247, 0.3);
     animation: pulse 2s infinite;
 }
 
-.status-opgelost {
+.status-resolved {
     background: rgba(16, 185, 129, 0.15);
     color: #34D399;
     border: 1px solid rgba(16, 185, 129, 0.3);
@@ -134,19 +131,19 @@ code {
     border: 1px solid rgba(239, 68, 68, 0.3);
 }
 
-.priority-hoog {
+.priority-high {
     background: rgba(249, 115, 22, 0.15);
     color: #FB923C;
     border: 1px solid rgba(249, 115, 22, 0.3);
 }
 
-.priority-normaal {
+.priority-normal {
     background: rgba(59, 130, 246, 0.15);
     color: #60A5FA;
     border: 1px solid rgba(59, 130, 246, 0.3);
 }
 
-.priority-laag {
+.priority-low {
     background: rgba(100, 116, 139, 0.15);
     color: #94A3B8;
     border: 1px solid rgba(100, 116, 139, 0.3);
