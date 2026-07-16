@@ -9,12 +9,9 @@ import { Button } from "../components/ui/button";
 import { toast } from "sonner";
 
 // Cleanup sprint 5 (2026-07): foto's staan niet meer als base64 embedded in de
-// ticket-rij, maar als storage_path in Supabase Storage (bucket "ticket-photos").
-// Vereist dat die bucket public leesbaar is; zo niet, moet dit een signed URL
-// ophalen via de backend i.p.v. de publieke-URL-vorm hieronder.
-const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL;
-const photoUrl = (storagePath) =>
-  `${SUPABASE_URL}/storage/v1/object/public/ticket-photos/${storagePath}`;
+// ticket-rij, maar in een private Supabase Storage bucket ("ticket-photos").
+// De backend geeft in `klus.photos` al kant-en-klare, tijdelijke signed URLs
+// terug (1u geldig) — hier hoeft dus geen URL meer opgebouwd te worden.
 
 const STATUS_STEPS = [
   { key: "sent",        label: "Verstuurd" },
@@ -260,10 +257,10 @@ const AannemerKlusDetail = () => {
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Foto's</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              {klus.photos.map((path) => (
+              {klus.photos.map((url) => (
                 <img
-                  key={path}
-                  src={photoUrl(path)}
+                  key={url}
+                  src={url}
                   alt="Foto van de klus"
                   className="w-full rounded-lg object-cover max-h-72"
                 />

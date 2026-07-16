@@ -1669,7 +1669,7 @@ async def get_job_detail(ticket_id: str, current_user: dict = Depends(get_curren
         'urgency': ticket['urgency'],
         'property_name': property_name,
         'location': ticket['location'],
-        'photos': [p['storage_path'] for p in photos],
+        'photos': [_signed_photo_url(p['storage_path']) for p in photos],
         'contractor_assigned_at': ticket['contractor_assigned_at'].isoformat() if ticket.get('contractor_assigned_at') else None,
         'created_at': ticket['created_at'].isoformat(),
     }
@@ -1731,12 +1731,33 @@ def _ticket_row_to_response(row: dict, photos: List[str], property_name: Optiona
     )
 
 
+def _signed_photo_url(storage_path: str, expires_in: int = 3600) -> str:
+    """
+    ticket-photos is een private bucket (foto's van meldingen zijn niet voor
+    het publiek bedoeld). We geven daarom nooit de rauwe storage_path terug,
+    maar genereren telkens een tijdelijke signed URL (default 1u geldig) die
+    alleen werkt met een geldig token. Bij elke keer dat een ticket wordt
+    opgehaald, wordt hier een verse URL voor gegenereerd.
+    """
+    try:
+        result = supabase_admin.storage.from_('ticket-photos').create_signed_url(storage_path, expires_in)
+        signed = result.get('signedURL') or result.get('signedUrl') or result.get('signed_url')
+        if not signed:
+            return storage_path
+        if signed.startswith('http'):
+            return signed
+        return f"{SUPABASE_URL}/storage/v1{signed}"
+    except Exception:
+        logging.exception(f"Kon geen signed URL genereren voor foto {storage_path}")
+        return storage_path
+
+
 async def _get_ticket_photos(ticket_id) -> List[str]:
     rows = await fetch(
         "select storage_path from ticket_photos where ticket_id = $1 order by created_at asc",
         ticket_id,
     )
-    return [r['storage_path'] for r in rows]
+    return [_signed_photo_url(r['storage_path']) for r in rows]
 
 
 @api_router.post("/tickets", response_model=TicketResponse)
