@@ -1,5 +1,0 @@
-Dit bestand is een accidenteel artefact van een ongequote "pip install pkg>=2.0.0"
-commando (de shell interpreteerde ">=2.0.0" als een redirect naar een bestand met
-die naam). Geen functionele inhoud. Verwijder dit bestand handmatig — kon niet
-programmatisch verwijderd worden vanuit deze sessie (geen bash-toegang tot deze
-repo-locatie). Zie kotklusser-cleanup-plan.md sectie 3.1.
