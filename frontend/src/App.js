@@ -184,7 +184,18 @@ const AuthProvider = ({ children }) => {
   // servervalidatie tegen andere gebruikers/panden en kan niet clientside).
   const register = async (data) => {
     const { email, password, ...profileData } = data;
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({ email, password });
+    // De ingevulde profielgegevens gaan mee als Supabase user_metadata (sleutel
+    // "kotklusser_registration"). Dat komt terecht in élk geldig access token
+    // voor dit account, ongeacht op welk (sub)domein de sessie tot stand komt
+    // (bv. na de bevestigingslink op www.kotklusser.be terwijl geregistreerd
+    // werd op kotklusser.be) — zie backend server.py get_current_user(), die
+    // het profiel hieruit alsnog aanmaakt als "Confirm email" aanstaat en er
+    // dus nog geen sessie was op het moment van signUp() hieronder.
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { kotklusser_registration: profileData } },
+    });
     if (signUpError) {
       throw { response: { data: { detail: signUpError.message } } };
     }
@@ -192,11 +203,11 @@ const AuthProvider = ({ children }) => {
     const accessToken = signUpData.session?.access_token;
     if (!accessToken) {
       // Gebeurt als "Confirm email" aanstaat in het Supabase-dashboard — er is
-      // dan nog geen sessie tot de gebruiker de bevestigingsmail volgt.
-      // complete-registration kan dus nog niet aangeroepen worden; bewaar de
-      // ingevulde gegevens lokaal zodat fetchProfile() het profiel alsnog kan
-      // aanmaken zodra er een sessie is (na de bevestigingslink, of bij een
-      // latere login op dit apparaat).
+      // dan nog geen sessie tot de gebruiker de bevestigingsmail volgt. Bewaar
+      // de gegevens ook lokaal als extra vangnet (zie fetchProfile hierboven)
+      // voor het geval dit exacte apparaat/browser de sessie tot stand brengt
+      // — de user_metadata hierboven is echter de eigenlijke fix en werkt ook
+      // als dat op een ander (sub)domein of apparaat gebeurt.
       localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify(profileData));
       return { pendingConfirmation: true };
     }

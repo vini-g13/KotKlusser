@@ -391,6 +391,57 @@ def _profile_row_to_dict(row: dict, email: str) -> dict:
     return user
 
 
+async def _create_profile_row(user_id: str, email: str, data: UserCreate) -> dict:
+    """Maakt de profiles-rij aan. Losstaand van complete_registration hieronder
+    zodat get_current_user (zie fallback verderop) dit ook kan aanroepen zonder
+    het bestaande gedrag van de /profile/complete-registration-route (die
+    expliciet 400 geeft bij een dubbele aanroep) te wijzigen."""
+    invite = None
+    if data.role == 'contractor' and data.invite_token:
+        invite = await fetchrow(
+            "select * from contractor_invites where token = $1 and email = $2 and used = false",
+            data.invite_token, email,
+        )
+        if not invite:
+            raise HTTPException(status_code=400, detail='Ongeldige of verlopen uitnodigingslink')
+
+    prop = None
+    if data.role == 'student' and data.join_code:
+        prop = await fetchrow("select * from properties where join_code = $1", data.join_code.upper())
+        if not prop:
+            raise HTTPException(status_code=400, detail='Ongeldige join code')
+        if not data.room_number or not data.floor:
+            raise HTTPException(status_code=400, detail='Kamernummer en verdieping zijn verplicht')
+
+    selected_plan = data.plan or 'starter'
+    await execute(
+        """
+        insert into profiles (id, role, name, phone, property_id, room_number, floor,
+                               plan, billing, subscription_status, specialty, region)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        """,
+        uuid.UUID(user_id), data.role, data.name, data.phone,
+        prop['id'] if prop else None,
+        data.room_number if prop else None,
+        data.floor if prop else None,
+        selected_plan, data.billing or 'monthly',
+        'active' if selected_plan == 'starter' else 'pending',
+        data.specialty if data.role == 'contractor' else None,
+        data.region if data.role == 'contractor' else None,
+    )
+
+    if data.role == 'contractor' and invite:
+        await execute(
+            "insert into contractor_landlord_links (contractor_id, landlord_id) values ($1, $2) "
+            "on conflict do nothing",
+            uuid.UUID(user_id), invite['landlord_id'],
+        )
+        await execute("update contractor_invites set used = true where token = $1", data.invite_token)
+
+    profile = await fetchrow(f"select {PROFILE_FIELDS} from profiles where id = $1", uuid.UUID(user_id))
+    return _profile_row_to_dict(profile, email)
+
+
 async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
     token = credentials.credentials
     try:
@@ -420,6 +471,27 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise HTTPException(status_code=401, detail='Ongeldig token')
 
     if not profile:
+        # Kan gebeuren als "Confirm email" aanstaat in Supabase: signUp() geeft
+        # dan meteen geen sessie terug, dus complete-registration kon nog niet
+        # aangeroepen worden vanuit de frontend (zie register() in App.js). De
+        # frontend geeft de ingevulde registratiegegevens daarom ook mee als
+        # Supabase user_metadata bij signUp() (sleutel "kotklusser_registration")
+        # -- die metadata zit in elk geldig access token, ongeacht op welk
+        # (sub)domein de sessie tot stand kwam. Probeer het profiel hier alsnog
+        # aan te maken voor we opgeven.
+        metadata = payload.get('user_metadata') or {}
+        pending = metadata.get('kotklusser_registration')
+        if isinstance(pending, dict) and pending.get('name'):
+            try:
+                registration_data = UserCreate(**pending)
+                return await _create_profile_row(user_id, email, registration_data)
+            except Exception as e:
+                # Kan een echte validatiefout zijn (bv. een join code die
+                # intussen niet meer bestaat) of iets onverwachts. In beide
+                # gevallen hoort elke andere API-call voor deze gebruiker
+                # gewoon de normale 401 hieronder te krijgen i.p.v. deze
+                # interne fout te lekken naar willekeurige endpoints.
+                logger.error(f"Kon profiel niet automatisch aanmaken uit user_metadata voor {user_id}: {e}")
         raise HTTPException(status_code=401, detail='Gebruikersprofiel niet gevonden')
 
     return _profile_row_to_dict(profile, email)
