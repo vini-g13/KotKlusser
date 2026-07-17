@@ -99,6 +99,17 @@ const AuthProvider = ({ children }) => {
       if (e.response?.status === 401) {
         const completed = await tryCompletePendingRegistration(accessToken);
         if (completed) return completed;
+
+        // Nog steeds geen profiel en niks om alsnog aan te maken: dit is een
+        // "zombie"-sessie (bv. een oud testaccount van vóór deze fix, of een
+        // registratie die nooit is afgerond). Zo'n sessie laten hangen zorgt
+        // ervoor dat user null blijft maar token wél gezet is, wat elders in
+        // de app (ProtectedRoute, /login-/register-redirects) tot een leeg
+        // scherm kan leiden. Log expliciet uit zodat de gebruiker een schone,
+        // duidelijke inlogpagina te zien krijgt in plaats van een lege pagina.
+        console.error("Geen profiel voor deze sessie — sessie wordt beëindigd.", e);
+        await supabase.auth.signOut();
+        return null;
       }
       console.error("Failed to fetch profile", e);
       return null;
