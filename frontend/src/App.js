@@ -48,11 +48,41 @@ export const useAuth = () => useContext(AuthContext);
 // automatisch verversen van tokens gebeurt door de Supabase-client zelf
 // (zie lib/supabaseClient.js), niet meer handmatig hier. `token` hieronder is
 // dus altijd het huidige Supabase access token, opgehaald uit de actieve sessie.
+// Bewaarplaats voor profielgegevens uit RegisterPage wanneer Supabase
+// "Confirm email" aanstaat: signUp() geeft dan meteen geen sessie terug,
+// dus complete-registration kan nog niet aangeroepen worden. We bewaren de
+// ingevulde profielgegevens hier tot er wél een sessie is (na het volgen van
+// de bevestigingsmail, of bij een latere login), zie fetchProfile hieronder.
+const PENDING_REGISTRATION_KEY = 'kotklusser_pending_registration';
+
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Probeert de profiles-rij alsnog aan te maken voor een account dat wél een
+  // geldige Supabase-sessie heeft maar nog geen profiel (zie register()
+  // hieronder). Enkel zinvol als er nog bewaarde registratiegegevens klaarstaan
+  // voor dit apparaat/browser.
+  const tryCompletePendingRegistration = async (accessToken) => {
+    const raw = localStorage.getItem(PENDING_REGISTRATION_KEY);
+    if (!raw) return null;
+    try {
+      const profileData = JSON.parse(raw);
+      const response = await axios.post(
+        `${API}/profile/complete-registration`,
+        profileData,
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      localStorage.removeItem(PENDING_REGISTRATION_KEY);
+      setUser(response.data);
+      return response.data;
+    } catch (e) {
+      console.error("Failed to complete pending registration", e);
+      return null;
+    }
+  };
 
   const fetchProfile = async (accessToken) => {
     try {
@@ -62,8 +92,14 @@ const AuthProvider = ({ children }) => {
       setUser(response.data);
       return response.data;
     } catch (e) {
-      // Profiel bestaat nog niet (bv. tussen signUp() en complete-registration,
-      // of tijdens het tweede registratiestap zelf) — geen hard falen hier.
+      // Profiel bestaat nog niet — kan bv. gebeuren net na het bevestigen van
+      // de e-mail bij registratie (zie register()). Probeer dan alsnog de
+      // bewaarde registratiegegevens te gebruiken om het profiel aan te maken
+      // voor we opgeven.
+      if (e.response?.status === 401) {
+        const completed = await tryCompletePendingRegistration(accessToken);
+        if (completed) return completed;
+      }
       console.error("Failed to fetch profile", e);
       return null;
     }
@@ -114,6 +150,19 @@ const AuthProvider = ({ children }) => {
     }
     setToken(data.session.access_token);
     const profile = await fetchProfile(data.session.access_token);
+    if (!profile) {
+      // fetchProfile probeert intern al eventuele bewaarde registratiegegevens
+      // te gebruiken (zie tryCompletePendingRegistration) — als er dan nog
+      // steeds geen profiel is, is er echt iets mis (bv. registratie op een
+      // ander apparaat afgebroken vóór bevestiging).
+      throw {
+        response: {
+          data: {
+            detail: 'Geen profiel gevonden voor dit account. Bevestig uw e-mailadres of neem contact op via contact@kotklusser.be.'
+          }
+        }
+      };
+    }
     return profile;
   };
 
@@ -131,15 +180,14 @@ const AuthProvider = ({ children }) => {
 
     const accessToken = signUpData.session?.access_token;
     if (!accessToken) {
-      // Kan gebeuren als "Confirm email" aanstaat in het Supabase-dashboard —
-      // dan is er nog geen sessie tot de gebruiker de bevestigingsmail volgt.
-      throw {
-        response: {
-          data: {
-            detail: 'Account aangemaakt, maar nog geen actieve sessie. Bevestig uw e-mailadres en log in.'
-          }
-        }
-      };
+      // Gebeurt als "Confirm email" aanstaat in het Supabase-dashboard — er is
+      // dan nog geen sessie tot de gebruiker de bevestigingsmail volgt.
+      // complete-registration kan dus nog niet aangeroepen worden; bewaar de
+      // ingevulde gegevens lokaal zodat fetchProfile() het profiel alsnog kan
+      // aanmaken zodra er een sessie is (na de bevestigingslink, of bij een
+      // latere login op dit apparaat).
+      localStorage.setItem(PENDING_REGISTRATION_KEY, JSON.stringify(profileData));
+      return { pendingConfirmation: true };
     }
 
     setToken(accessToken);

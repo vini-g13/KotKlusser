@@ -89,7 +89,18 @@ const RegisterPage = () => {
         submitData.invite_token = inviteToken;
       }
 
-      const { user, token: authToken } = await register(submitData);
+      const result = await register(submitData);
+
+      if (result.pendingConfirmation) {
+        // Supabase "Confirm email" staat aan: er is nog geen sessie, dus het
+        // profiel wordt pas aangemaakt zodra de gebruiker de bevestigingslink
+        // volgt (zie App.js: fetchProfile/tryCompletePendingRegistration).
+        toast.success("Account aangemaakt! Check uw mailbox en bevestig uw e-mailadres om in te loggen.");
+        navigate('/login', { replace: true });
+        return;
+      }
+
+      const { user, token: authToken } = result;
       toast.success(`Welkom, ${user.name}! Account succesvol aangemaakt.`);
 
       if (selectedPlan && selectedPlan !== 'starter') {
