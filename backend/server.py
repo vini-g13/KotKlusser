@@ -162,6 +162,25 @@ STRIPE_PRICE_IDS = {
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Crash logging (Sentry) — optioneel: stdout-only logging verdwijnt met Railway's
+# log-rotatie, zie kotklusser-cleanup-plan.md sectie 4. Geen require_env: een
+# ontbrekende SENTRY_DSN is geen security/correctheidsprobleem zoals een
+# ontbrekende DB-credential, dus de app moet gewoon zonder Sentry blijven draaien.
+SENTRY_DSN = os.environ.get('SENTRY_DSN', '')
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=0.0,
+        environment=os.environ.get('RAILWAY_ENVIRONMENT_NAME', 'development'),
+    )
+    logger.info("Sentry crash logging actief.")
+else:
+    logger.warning("SENTRY_DSN niet ingesteld — crash logging naar Sentry is uitgeschakeld.")
+
 if STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 else:

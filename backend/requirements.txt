@@ -11,3 +11,4 @@ PyJWT[crypto]==2.11.0
 supabase==2.10.0
 resend==2.23.0
 python-multipart==0.0.22
+sentry-sdk[fastapi]==2.66.0
