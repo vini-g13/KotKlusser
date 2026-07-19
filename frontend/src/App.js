@@ -14,6 +14,8 @@ import CookieConsent from "./components/CookieConsent";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 import StudentDashboard from "./pages/StudentDashboard";
 import LandlordDashboard from "./pages/LandlordDashboard";
 import NewReport from "./pages/NewReport";
@@ -345,6 +347,16 @@ function AppRoutes() {
           ) : (
             <PageWrapper><RegisterPage /></PageWrapper>
           )
+        } />
+        <Route path="/wachtwoord-vergeten" element={
+          user ? (
+            <Navigate to={user.role === 'landlord' ? '/verhuurder' : '/dashboard'} replace />
+          ) : (
+            <PageWrapper><ForgotPasswordPage /></PageWrapper>
+          )
+        } />
+        <Route path="/wachtwoord-resetten" element={
+          <PageWrapper><ResetPasswordPage /></PageWrapper>
         } />
         <Route path="/join/:code" element={
           <PageWrapper><JoinProperty /></PageWrapper>
