@@ -8,6 +8,7 @@ import { supabase } from "./lib/supabaseClient";
 
 // Components
 import SessionExpiredScreen from "./components/SessionExpiredScreen";
+import CookieConsent from "./components/CookieConsent";
 
 // Pages
 import LandingPage from "./pages/LandingPage";
@@ -435,6 +436,7 @@ function App() {
         <BrowserRouter>
           <AppRoutes />
           <SessionExpiredOverlay />
+          <CookieConsent />
           <Toaster
             position="bottom-right" 
             toastOptions={{
