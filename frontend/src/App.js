@@ -32,6 +32,7 @@ import PaymentSuccessPage from "./pages/PaymentSuccessPage";
 import PaymentCancelPage from "./pages/PaymentCancelPage";
 import AannemerDashboard from "./pages/AannemerDashboard";
 import AannemerKlusDetail from "./pages/AannemerKlusDetail";
+import NotFoundPage from "./pages/NotFoundPage";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 export const API = `${BACKEND_URL}/api`;
@@ -413,6 +414,7 @@ function AppRoutes() {
             <AannemerKlusDetail />
           </ProtectedRoute>
         } />
+        <Route path="*" element={<PageWrapper><NotFoundPage /></PageWrapper>} />
       </Routes>
     </AnimatePresence>
   );
