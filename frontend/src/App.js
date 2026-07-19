@@ -25,6 +25,7 @@ import LandlordProfilePage from "./pages/LandlordProfilePage";
 import EmailChangeApproval from "./pages/EmailChangeApproval";
 import ConfirmEmail from "./pages/ConfirmEmail";
 import OverOnsPage from "./pages/OverOnsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import ContactPage from "./pages/ContactPage";
 import DemoPage from "./pages/DemoPage";
 import PricingPage from "./pages/PricingPage";
@@ -399,6 +400,7 @@ function AppRoutes() {
           <PageWrapper><ConfirmEmail /></PageWrapper>
         } />
         <Route path="/over-ons" element={<PageWrapper><OverOnsPage /></PageWrapper>} />
+        <Route path="/privacybeleid" element={<PageWrapper><PrivacyPage /></PageWrapper>} />
         <Route path="/contact" element={<PageWrapper><ContactPage /></PageWrapper>} />
         <Route path="/demo" element={<PageWrapper><DemoPage /></PageWrapper>} />
         <Route path="/prijzen" element={<PageWrapper><PricingPage /></PageWrapper>} />
