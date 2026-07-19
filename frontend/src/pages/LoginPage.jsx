@@ -98,10 +98,15 @@ const LoginPage = () => {
                   {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                 </button>
               </div>
+              <div className="text-right">
+                <Link to="/wachtwoord-vergeten" className="text-sm text-slate-400 hover:text-indigo-400">
+                  Wachtwoord vergeten?
+                </Link>
+              </div>
             </div>
 
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 glow-primary"
               disabled={loading}
               data-testid="login-submit-btn"
