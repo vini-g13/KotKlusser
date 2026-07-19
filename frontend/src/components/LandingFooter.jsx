@@ -38,6 +38,7 @@ const LandingFooter = () => {
                 { label: "Contact", to: "/contact" },
                 { label: "Demo", to: "/demo" },
                 { label: "Prijzen", to: "/prijzen" },
+                { label: "Privacybeleid", to: "/privacybeleid" },
               ].map((link) => (
                 <Link
                   key={link.to}
