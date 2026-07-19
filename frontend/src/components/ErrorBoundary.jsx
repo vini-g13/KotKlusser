@@ -1,4 +1,5 @@
 import { Component } from "react";
+import * as Sentry from "@sentry/react";
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -13,6 +14,7 @@ class ErrorBoundary extends Component {
   componentDidCatch(error, errorInfo) {
     // eslint-disable-next-line no-console
     console.error("Onverwachte fout in de app:", error, errorInfo);
+    Sentry.captureException(error, { extra: { componentStack: errorInfo?.componentStack } });
   }
 
   handleReload = () => {
