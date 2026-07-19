@@ -1466,7 +1466,8 @@ async def join_property(request: JoinPropertyRequest, user: dict = Depends(get_c
 
 
 @api_router.get("/properties/by-code/{join_code}")
-async def get_property_by_code(join_code: str):
+@limiter.limit("20/minute")
+async def get_property_by_code(request: Request, join_code: str):
     """Public endpoint to verify join code and get property name and floors"""
     prop = await fetchrow("select * from properties where join_code = $1", join_code.upper())
     if not prop:
