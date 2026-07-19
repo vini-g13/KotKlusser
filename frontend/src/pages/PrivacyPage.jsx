@@ -51,6 +51,7 @@ const sections = [
     title: "Cookies",
     body: [
       "KotKlusser gebruikt functionele cookies die nodig zijn om ingelogd te blijven, en anonieme analytics-cookies (PostHog) om te begrijpen hoe het platform gebruikt wordt. We gebruiken geen advertentiecookies.",
+      "Bij je eerste bezoek kan je kiezen: alle cookies accepteren, enkel de noodzakelijke (functionele) cookies toestaan, of via \"Voorkeuren\" zelf aangeven of je de analytics-cookies toestaat. Functionele cookies staan altijd aan, aangezien het platform daar niet zonder kan werken. Je kan je keuze op elk moment aanpassen door de cookies voor kotklusser.be in je browser te wissen — de banner verschijnt dan opnieuw.",
     ],
   },
   {
