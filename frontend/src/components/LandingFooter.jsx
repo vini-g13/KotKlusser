@@ -1,11 +1,13 @@
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Instagram, Linkedin } from "lucide-react";
 
 const LandingFooter = () => {
+  const location = useLocation();
+
   return (
     <footer className="bg-[#080714] border-t border-white/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid md:grid-cols-2 gap-8 mb-8">
+        <div className="grid md:grid-cols-3 gap-8 mb-8">
           {/* Left: logo + tagline + socials */}
           <div>
             <Link to="/" className="inline-block mb-3">
@@ -26,19 +28,21 @@ const LandingFooter = () => {
             </div>
           </div>
 
-          {/* Right: nav links */}
-          <div className="md:text-right">
+          {/* Center: nav links */}
+          <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">
               Navigatie
             </p>
-            <nav className="flex flex-col gap-2 md:items-end">
+            <nav className="flex flex-col gap-2">
               {[
                 { label: "Home", to: "/" },
                 { label: "Over ons", to: "/over-ons" },
                 { label: "Contact", to: "/contact" },
                 { label: "Demo", to: "/demo" },
                 { label: "Prijzen", to: "/prijzen" },
-              ].map((link) => (
+              ]
+                .filter((link) => link.to !== "/" || location.pathname !== "/")
+                .map((link) => (
                 <Link
                   key={link.to}
                   to={link.to}

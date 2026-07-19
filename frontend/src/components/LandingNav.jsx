@@ -5,7 +5,6 @@ import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 const navLinks = [
-  { label: "Home", to: "/" },
   { label: "Over ons", to: "/over-ons" },
   { label: "Contact", to: "/contact" },
   { label: "Demo", to: "/demo" },
