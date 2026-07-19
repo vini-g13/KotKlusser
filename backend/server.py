@@ -2415,7 +2415,8 @@ async def submit_contact_form(request: Request, submission: ContactFormSubmissio
 
 
 @api_router.post("/demo-signup")
-async def submit_demo_signup(submission: DemoSignupSubmission, background_tasks: BackgroundTasks):
+@limiter.limit("5/hour")
+async def submit_demo_signup(request: Request, submission: DemoSignupSubmission, background_tasks: BackgroundTasks):
     follow_up_at = datetime.now(timezone.utc) + timedelta(days=3)
     await execute(
         """
