@@ -2380,7 +2380,8 @@ async def get_dashboard_stats(property_id: Optional[str] = None, user: dict = De
 
 
 @api_router.post("/contact")
-async def submit_contact_form(submission: ContactFormSubmission, background_tasks: BackgroundTasks):
+@limiter.limit("5/hour")
+async def submit_contact_form(request: Request, submission: ContactFormSubmission, background_tasks: BackgroundTasks):
     await execute(
         """
         insert into contact_submissions (id, type, name, company, email, phone, message)
