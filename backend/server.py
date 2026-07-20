@@ -1508,11 +1508,8 @@ async def leave_property(
 async def invite_contractor(
     data: ContractorInviteRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemers uitnodigen')),
 ):
-    if current_user.get('role') != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers uitnodigen')
-
     existing = await fetchrow(
         "select pr.id, pr.name from profiles pr join auth.users au on au.id = pr.id "
         "where au.email = $1 and pr.role = 'contractor'",
@@ -1562,10 +1559,10 @@ async def invite_contractor(
 
 
 @api_router.get("/contractors/search")
-async def search_contractors(q: str, current_user: dict = Depends(get_current_user)):
-    if current_user.get('role') != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers zoeken')
-
+async def search_contractors(
+    q: str,
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemers zoeken')),
+):
     pattern = f"%{q}%"
     rows = await fetch(
         """
@@ -1585,10 +1582,9 @@ async def search_contractors(q: str, current_user: dict = Depends(get_current_us
 
 
 @api_router.get("/contractors/my-list")
-async def my_contractors(current_user: dict = Depends(get_current_user)):
-    if current_user.get('role') != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen hun aannemerslijst ophalen')
-
+async def my_contractors(
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen hun aannemerslijst ophalen')),
+):
     rows = await fetch(
         """
         select pr.id, pr.name, au.email, pr.specialty, pr.region
@@ -1623,11 +1619,8 @@ async def assign_contractor(
     ticket_id: str,
     data: AssignContractorRequest,
     background_tasks: BackgroundTasks,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemers toewijzen')),
 ):
-    if current_user.get('role') != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers toewijzen')
-
     ticket = await _assert_landlord_owns_ticket(ticket_id, current_user['id'])
 
     contractor = await fetchrow(
@@ -1683,10 +1676,10 @@ async def assign_contractor(
 
 
 @api_router.delete("/tickets/{ticket_id}/assign-contractor")
-async def remove_contractor(ticket_id: str, current_user: dict = Depends(get_current_user)):
-    if current_user.get('role') != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen aannemers verwijderen')
-
+async def remove_contractor(
+    ticket_id: str,
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemers verwijderen')),
+):
     await _assert_landlord_owns_ticket(ticket_id, current_user['id'])
 
     await execute(
