@@ -1914,9 +1914,7 @@ async def get_tickets(
         args.append(uuid.UUID(user['id']))
         conditions.append(f"t.created_by = ${len(args)}")
     elif user['role'] == 'landlord':
-        landlord_property_ids = [
-            r['id'] for r in await fetch("select id from properties where landlord_id = $1", uuid.UUID(user['id']))
-        ]
+        landlord_property_ids = await get_landlord_property_ids(user['id'])
         if property_id and uuid.UUID(property_id) in landlord_property_ids:
             args.append(uuid.UUID(property_id))
             conditions.append(f"t.property_id = ${len(args)}")
@@ -1958,10 +1956,9 @@ async def get_tickets(
 
 
 @api_router.get("/tickets/unread-counts")
-async def get_unread_counts(user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen ongelezen berichten opvragen')
-
+async def get_unread_counts(
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen ongelezen berichten opvragen')),
+):
     rows = await fetch(
         """
         select t.id,
@@ -1986,10 +1983,9 @@ async def get_unread_counts(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/tickets/unread-counts-student")
-async def get_unread_counts_student(user: dict = Depends(get_current_user)):
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen ongelezen berichten opvragen')
-
+async def get_unread_counts_student(
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen ongelezen berichten opvragen')),
+):
     tickets = await fetch(
         "select id, last_student_read, last_status_change from tickets where created_by = $1",
         uuid.UUID(user['id']),
@@ -2023,10 +2019,10 @@ async def get_unread_counts_student(user: dict = Depends(get_current_user)):
 
 
 @api_router.post("/tickets/{ticket_id}/mark-read-student")
-async def mark_ticket_read_student(ticket_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen tickets als gelezen markeren')
-
+async def mark_ticket_read_student(
+    ticket_id: str,
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen tickets als gelezen markeren')),
+):
     ticket = await fetchrow("select created_by from tickets where id = $1", uuid.UUID(ticket_id))
     if not ticket:
         raise HTTPException(status_code=404, detail='Ticket niet gevonden')
@@ -2083,11 +2079,8 @@ async def update_ticket(
     ticket_id: str,
     update: TicketUpdate,
     background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen tickets bijwerken')),
 ):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen tickets bijwerken')
-
     ticket = await _get_ticket_with_access_check(ticket_id, user)
 
     sets, args = [], []
@@ -2267,10 +2260,11 @@ async def get_messages(ticket_id: str, user: dict = Depends(get_current_user)):
 
 
 @api_router.post("/tickets/{ticket_id}/send-reminder")
-async def send_ticket_reminder(ticket_id: str, background_tasks: BackgroundTasks, user: dict = Depends(get_current_user)):
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een herinnering sturen')
-
+async def send_ticket_reminder(
+    ticket_id: str,
+    background_tasks: BackgroundTasks,
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen een herinnering sturen')),
+):
     ticket = await _get_ticket_with_access_check(ticket_id, user)
 
     if ticket['status'] == 'resolved':
@@ -2331,10 +2325,10 @@ async def send_ticket_reminder(ticket_id: str, background_tasks: BackgroundTasks
 
 
 @api_router.post("/tickets/{ticket_id}/mark-read")
-async def mark_ticket_read(ticket_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen tickets als gelezen markeren')
-
+async def mark_ticket_read(
+    ticket_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen tickets als gelezen markeren')),
+):
     await execute(
         "update tickets set last_landlord_read = $2 where id = $1",
         uuid.UUID(ticket_id), datetime.now(timezone.utc),
@@ -2344,13 +2338,11 @@ async def mark_ticket_read(ticket_id: str, user: dict = Depends(get_current_user
 # ============ STATS ROUTES ============
 
 @api_router.get("/stats/dashboard")
-async def get_dashboard_stats(property_id: Optional[str] = None, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders hebben toegang tot statistieken')
-
-    landlord_property_ids = [
-        r['id'] for r in await fetch("select id from properties where landlord_id = $1", uuid.UUID(user['id']))
-    ]
+async def get_dashboard_stats(
+    property_id: Optional[str] = None,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders hebben toegang tot statistieken')),
+):
+    landlord_property_ids = await get_landlord_property_ids(user['id'])
 
     if property_id and uuid.UUID(property_id) in landlord_property_ids:
         target_ids = [uuid.UUID(property_id)]
