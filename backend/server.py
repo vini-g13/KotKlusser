@@ -887,11 +887,8 @@ async def update_profile(update: ProfileUpdate, user: dict = Depends(get_current
 async def landlord_request_email_change(
     request: LandlordEmailChangeRequest,
     background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_role('landlord', 'Dit endpoint is alleen voor verhuurders'))
 ):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
-
     pending = await fetchrow(
         "select id from landlord_email_changes where landlord_id = $1 and status = 'pending'",
         uuid.UUID(user['id']),
@@ -941,9 +938,9 @@ async def landlord_request_email_change(
     }
 
 @api_router.get("/profile/landlord-email-change-requests")
-async def get_landlord_email_change_requests(user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
+async def get_landlord_email_change_requests(
+    user: dict = Depends(require_role('landlord', 'Dit endpoint is alleen voor verhuurders'))
+):
     rows = await fetch(
         "select id, old_email, new_email, status, created_at, confirmed_at "
         "from landlord_email_changes where landlord_id = $1 order by created_at desc limit 100",
@@ -956,9 +953,9 @@ async def get_landlord_email_change_requests(user: dict = Depends(get_current_us
     ]
 
 @api_router.delete("/profile/landlord-email-change-request")
-async def cancel_landlord_email_change_request(user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Dit endpoint is alleen voor verhuurders')
+async def cancel_landlord_email_change_request(
+    user: dict = Depends(require_role('landlord', 'Dit endpoint is alleen voor verhuurders'))
+):
     result = await execute(
         "delete from landlord_email_changes where landlord_id = $1 and status = 'pending'",
         uuid.UUID(user['id']),
@@ -1017,12 +1014,9 @@ async def confirm_landlord_email_change(token: str, background_tasks: Background
 async def request_email_change(
     request: EmailChangeRequest,
     background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen een emailwijziging aanvragen'))
 ):
     """Request an email address change. Requires landlord approval."""
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een emailwijziging aanvragen')
-
     pending = await fetchrow(
         "select id from email_change_requests where student_id = $1 and status = 'pending'",
         uuid.UUID(user['id']),
@@ -1108,9 +1102,9 @@ async def cancel_email_change_request(user: dict = Depends(get_current_user)):
 # ============ EMAIL CHANGE APPROVAL ROUTES (FOR LANDLORDS) ============
 
 @api_router.get("/email-change-requests/pending")
-async def get_pending_email_change_requests(user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen dit bekijken')
+async def get_pending_email_change_requests(
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen dit bekijken'))
+):
     rows = await fetch(
         "select ecr.*, p.name as property_name from email_change_requests ecr "
         "left join properties p on p.id = ecr.property_id "
@@ -1150,11 +1144,8 @@ async def process_email_change_request(
     token: str,
     approval: EmailChangeApproval,
     background_tasks: BackgroundTasks,
-    user: dict = Depends(get_current_user)
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen dit verwerken'))
 ):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen dit verwerken')
-
     req = await fetchrow(
         "select * from email_change_requests where approval_token = $1 and status = 'pending'",
         token,
