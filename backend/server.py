@@ -1690,10 +1690,9 @@ async def remove_contractor(
 
 
 @api_router.get("/contractor/tickets")
-async def my_jobs(current_user: dict = Depends(get_current_user)):
-    if current_user.get('role') != 'contractor':
-        raise HTTPException(status_code=403, detail='Alleen aannemers kunnen klussen ophalen')
-
+async def my_jobs(
+    current_user: dict = Depends(require_role('contractor', 'Alleen aannemers kunnen klussen ophalen')),
+):
     rows = await fetch(
         """
         select t.*, p.name as property_name
@@ -1723,10 +1722,10 @@ async def my_jobs(current_user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/contractor/tickets/{ticket_id}")
-async def get_job_detail(ticket_id: str, current_user: dict = Depends(get_current_user)):
-    if current_user.get('role') != 'contractor':
-        raise HTTPException(status_code=403, detail='Geen toegang')
-
+async def get_job_detail(
+    ticket_id: str,
+    current_user: dict = Depends(require_role('contractor', 'Geen toegang')),
+):
     ticket = await fetchrow(
         "select * from tickets where id = $1 and contractor_id = $2",
         uuid.UUID(ticket_id), uuid.UUID(current_user['id']),
@@ -1765,11 +1764,8 @@ async def get_job_detail(ticket_id: str, current_user: dict = Depends(get_curren
 async def update_job_status(
     ticket_id: str,
     data: ContractorStatusUpdate,
-    current_user: dict = Depends(get_current_user)
+    current_user: dict = Depends(require_role('contractor', 'Alleen aannemers kunnen klus-status updaten')),
 ):
-    if current_user.get('role') != 'contractor':
-        raise HTTPException(status_code=403, detail='Alleen aannemers kunnen klus-status updaten')
-
     valid_statuses = ['in_progress', 'resolved']
     if data.status not in valid_statuses:
         raise HTTPException(status_code=400, detail=f'Ongeldige status. Kies uit: {valid_statuses}')
