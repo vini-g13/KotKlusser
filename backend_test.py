@@ -4,6 +4,7 @@ Comprehensive Backend API Testing for KotKlusser System
 Tests all authentication, ticket management, messaging, and stats endpoints
 """
 
+import os
 import requests
 import sys
 import json
@@ -11,8 +12,14 @@ from datetime import datetime
 import base64
 import io
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), 'backend', 'tests'))
+from conftest import create_confirmed_test_user, unique_test_email  # noqa: E402
+
+DEFAULT_BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'http://localhost:8000').rstrip('/') + '/api'
+
+
 class KotKlusserAPITester:
-    def __init__(self, base_url="https://kot-quick.preview.emergentagent.com/api"):
+    def __init__(self, base_url=DEFAULT_BASE_URL):
         self.base_url = base_url
         self.student_token = None
         self.landlord_token = None
@@ -80,69 +87,54 @@ class KotKlusserAPITester:
         return success
 
     def test_register_student(self):
-        """Test student registration"""
-        test_data = {
-            "email": f"student_{datetime.now().strftime('%H%M%S')}@test.com",
-            "password": "TestPass123!",
-            "name": "Test Student",
-            "role": "student",
-            "phone": "+32 123 456 789"
-        }
-        
-        status, response = self.make_request('POST', 'auth/register', test_data)
-        success = status == 200 and 'token' in response and 'user' in response
-        
-        if success:
-            self.student_token = response['token']
-            self.student_user = response['user']
-            self.log_test("Student Registration", True, f"User ID: {self.student_user['id']}")
-        else:
-            self.log_test("Student Registration", False, f"Status {status}", response)
-        
-        return success
+        """Test student registration via Supabase Auth"""
+        email = unique_test_email("student")
+        try:
+            user_id, token = create_confirmed_test_user(
+                role="student", email=email, password="TestPass123!", name="Test Student",
+                phone="+32 123 456 789",
+            )
+            self.student_token = token
+            self.student_user = {"id": user_id, "email": email, "name": "Test Student"}
+            self.log_test("Student Registration", True, f"User ID: {user_id}")
+            return True
+        except Exception as e:
+            self.log_test("Student Registration", False, str(e))
+            return False
 
     def test_register_landlord(self):
-        """Test landlord registration"""
-        test_data = {
-            "email": f"landlord_{datetime.now().strftime('%H%M%S')}@test.com",
-            "password": "TestPass123!",
-            "name": "Test Landlord",
-            "role": "landlord",
-            "phone": "+32 987 654 321"
-        }
-        
-        status, response = self.make_request('POST', 'auth/register', test_data)
-        success = status == 200 and 'token' in response and 'user' in response
-        
-        if success:
-            self.landlord_token = response['token']
-            self.landlord_user = response['user']
-            self.log_test("Landlord Registration", True, f"User ID: {self.landlord_user['id']}")
-        else:
-            self.log_test("Landlord Registration", False, f"Status {status}", response)
-        
-        return success
+        """Test landlord registration via Supabase Auth"""
+        email = unique_test_email("landlord")
+        try:
+            user_id, token = create_confirmed_test_user(
+                role="landlord", email=email, password="TestPass123!", name="Test Landlord",
+                phone="+32 987 654 321",
+            )
+            self.landlord_token = token
+            self.landlord_user = {"id": user_id, "email": email, "name": "Test Landlord"}
+            self.log_test("Landlord Registration", True, f"User ID: {user_id}")
+            return True
+        except Exception as e:
+            self.log_test("Landlord Registration", False, str(e))
+            return False
 
     def test_login_student(self):
-        """Test student login"""
+        """Test student re-authentication (Supabase sign-in for an already-confirmed account)"""
         if not self.student_user:
             self.log_test("Student Login", False, "No student user to login")
             return False
-        
-        test_data = {
-            "email": self.student_user['email'],
-            "password": "TestPass123!"
-        }
-        
-        status, response = self.make_request('POST', 'auth/login', test_data)
-        success = status == 200 and 'token' in response
-        
-        if success:
-            self.log_test("Student Login", True, "Login successful")
-        else:
-            self.log_test("Student Login", False, f"Status {status}", response)
-        
-        return success
+
+        try:
+            _, token = create_confirmed_test_user(
+                role="student", email=self.student_user['email'], password="TestPass123!",
+                name="Test Student",
+            )
+            success = bool(token)
+            self.log_test("Student Login", success, "Login successful" if success else "No token returned")
+            return success
+        except Exception as e:
+            self.log_test("Student Login", False, str(e))
+            return False
 
     def test_get_current_user(self):
         """Test get current user endpoint"""
