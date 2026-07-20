@@ -7,7 +7,7 @@ import requests
 import os
 import uuid
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', '').rstrip('/')
+from conftest import create_confirmed_test_user, unique_test_email, BASE_URL
 
 # Test credentials from main agent
 TEST_LANDLORD = {
@@ -33,22 +33,14 @@ class TestFloorConfigurationBackend:
     
     @pytest.fixture(scope="class")
     def landlord_token(self, api_client):
-        """Get landlord auth token - try login first, register if needed"""
-        # Try login
-        response = api_client.post(f"{BASE_URL}/api/auth/login", json=TEST_LANDLORD)
-        if response.status_code == 200:
-            return response.json()["token"]
-        
-        # Register new landlord if login fails
-        response = api_client.post(f"{BASE_URL}/api/auth/register", json={
-            "email": TEST_LANDLORD["email"],
-            "password": TEST_LANDLORD["password"],
-            "name": "Test Landlord Floor",
-            "role": "landlord"
-        })
-        if response.status_code == 200:
-            return response.json()["token"]
-        pytest.skip("Could not authenticate landlord")
+        """Get landlord auth token via the Supabase test-auth helper"""
+        _, token = create_confirmed_test_user(
+            role="landlord",
+            email=TEST_LANDLORD["email"],
+            password=TEST_LANDLORD["password"],
+            name="Test Landlord Floor",
+        )
+        return token
     
     @pytest.fixture(scope="class")
     def authenticated_landlord(self, api_client, landlord_token):
@@ -229,19 +221,14 @@ class TestStudentJoinWithFloorDropdown:
     
     @pytest.fixture(scope="class")
     def new_student_token(self, api_client):
-        """Register a new test student"""
-        unique_email = f"test_floor_student_{uuid.uuid4().hex[:8]}@test.com"
-        
-        response = api_client.post(f"{BASE_URL}/api/auth/register", json={
-            "email": unique_email,
-            "password": "test123",
-            "name": "Test Floor Student",
-            "role": "student"
-        })
-        
-        if response.status_code == 200:
-            return response.json()["token"]
-        pytest.skip(f"Could not register student: {response.text}")
+        """Register a new test student via the Supabase test-auth helper"""
+        _, token = create_confirmed_test_user(
+            role="student",
+            email=unique_test_email("test_floor_student"),
+            password="test123",
+            name="Test Floor Student",
+        )
+        return token
     
     @pytest.fixture(scope="class")
     def authenticated_student(self, api_client, new_student_token):
@@ -280,25 +267,25 @@ class TestStudentJoinWithFloorDropdown:
     # Test 11: Join with invalid floor value should still work (backend accepts any string)
     def test_join_floor_validation(self, api_client):
         """Test that floor is properly stored (string value)"""
-        # Register another student
-        unique_email = f"test_floor_val_{uuid.uuid4().hex[:8]}@test.com"
-        
-        response = api_client.post(f"{BASE_URL}/api/auth/register", json={
-            "email": unique_email,
-            "password": "test123",
-            "name": "Test Floor Validation",
-            "role": "student",
-            "join_code": EXISTING_JOIN_CODE,
-            "room_number": "TEST102",
-            "floor": "2"  # Using dropdown value
-        })
-        
-        assert response.status_code == 200, f"Registration failed: {response.text}"
-        
+        _, token = create_confirmed_test_user(
+            role="student",
+            email=unique_test_email("test_floor_val"),
+            password="test123",
+            name="Test Floor Validation",
+            join_code=EXISTING_JOIN_CODE,
+            room_number="TEST102",
+            floor="2",  # Using dropdown value
+        )
+
+        response = api_client.get(
+            f"{BASE_URL}/api/profile", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert response.status_code == 200, f"Profile fetch failed: {response.text}"
+
         data = response.json()
-        assert data["user"]["floor"] == "2"
-        assert data["user"]["property_name"] == "Test Gebouw"
-        
+        assert data["floor"] == "2"
+        assert data["property_name"] == "Test Gebouw"
+
         print(f"Student registered with floor value '2' successfully")
 
 
