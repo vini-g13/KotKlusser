@@ -134,12 +134,10 @@ async def execute(query: str, *args) -> str:
 
 # Resend Config
 RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
-SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'onboarding@resend.dev')
-# NOTE: de onboarding@resend.dev-fallback hierboven is een bekend deliverability-
-# probleem — zie kotklusser-cleanup-plan.md sectie 6.3. Los daarvan getrackt.
+SENDER_EMAIL = require_env('SENDER_EMAIL')
 
 # App URL for join links
-APP_URL = os.environ.get('APP_URL', 'https://kot-quick.preview.emergentagent.com')
+APP_URL = require_env('APP_URL')
 FRONTEND_URL = os.environ.get('FRONTEND_URL', APP_URL)
 
 # CORS
