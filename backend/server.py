@@ -514,6 +514,18 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
     return _profile_row_to_dict(profile, email)
 
 
+def require_role(role: str, detail: str):
+    """Dependency factory: only allows the given single role through, else
+    raises 403 with the exact detail text the call site provides. Keeps
+    every route's existing, route-specific error message intact — this is
+    a pure refactor of *where* the check happens, not *what* it says."""
+    async def checker(user: dict = Depends(get_current_user)) -> dict:
+        if user['role'] != role:
+            raise HTTPException(status_code=403, detail=detail)
+        return user
+    return checker
+
+
 def generate_join_code() -> str:
     """Generate a 6-character alphanumeric join code"""
     return ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
@@ -1899,6 +1911,13 @@ async def create_ticket(
     )
 
     return _ticket_row_to_response({**row, 'created_by_name': user['name']}, [], property_name)
+
+
+async def get_landlord_property_ids(landlord_id: str) -> list:
+    """Shared by get_tickets and get_dashboard_stats — both needed the same
+    'all property IDs owned by this landlord' query."""
+    rows = await fetch("select id from properties where landlord_id = $1", uuid.UUID(landlord_id))
+    return [r['id'] for r in rows]
 
 
 @api_router.get("/tickets", response_model=List[TicketResponse])
