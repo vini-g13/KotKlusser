@@ -1441,10 +1441,10 @@ async def remove_tenant(
 # ============ JOIN PROPERTY (FOR STUDENTS) ============
 
 @api_router.post("/properties/join")
-async def join_property(request: JoinPropertyRequest, user: dict = Depends(get_current_user)):
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen zich aansluiten bij een pand')
-
+async def join_property(
+    request: JoinPropertyRequest,
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen zich aansluiten bij een pand')),
+):
     if user.get('property_id'):
         raise HTTPException(
             status_code=400,
@@ -1486,10 +1486,9 @@ async def get_property_by_code(request: Request, join_code: str):
 
 
 @api_router.post("/properties/leave")
-async def leave_property(user: dict = Depends(get_current_user)):
-    if user['role'] != 'student':
-        raise HTTPException(status_code=403, detail='Alleen studenten kunnen een pand verlaten')
-
+async def leave_property(
+    user: dict = Depends(require_role('student', 'Alleen studenten kunnen een pand verlaten')),
+):
     if not user.get('property_id'):
         raise HTTPException(status_code=400, detail='U bent niet gekoppeld aan een pand')
 
