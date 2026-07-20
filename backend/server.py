@@ -1242,10 +1242,10 @@ def _property_row_to_response(prop: dict, tenant_count: int) -> PropertyResponse
 
 
 @api_router.post("/properties", response_model=PropertyResponse)
-async def create_property(prop: PropertyCreate, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden aanmaken')
-
+async def create_property(
+    prop: PropertyCreate,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen panden aanmaken')),
+):
     property_id = uuid.uuid4()
     join_code = generate_join_code()
     while await fetchval("select 1 from properties where join_code = $1", join_code):
@@ -1265,10 +1265,9 @@ async def create_property(prop: PropertyCreate, user: dict = Depends(get_current
 
 
 @api_router.get("/properties", response_model=List[PropertyResponse])
-async def get_properties(user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bekijken')
-
+async def get_properties(
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen panden bekijken')),
+):
     rows = await fetch(
         """
         select p.*, count(pr.id) as tenant_count
@@ -1284,10 +1283,10 @@ async def get_properties(user: dict = Depends(get_current_user)):
 
 
 @api_router.get("/properties/{property_id}", response_model=PropertyResponse)
-async def get_property(property_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bekijken')
-
+async def get_property(
+    property_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen panden bekijken')),
+):
     prop = await fetchrow(
         "select * from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
@@ -1300,10 +1299,11 @@ async def get_property(property_id: str, user: dict = Depends(get_current_user))
 
 
 @api_router.patch("/properties/{property_id}", response_model=PropertyResponse)
-async def update_property(property_id: str, update: PropertyUpdate, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden bijwerken')
-
+async def update_property(
+    property_id: str,
+    update: PropertyUpdate,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen panden bijwerken')),
+):
     prop = await fetchrow(
         "select * from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
@@ -1335,10 +1335,10 @@ async def update_property(property_id: str, update: PropertyUpdate, user: dict =
 
 
 @api_router.delete("/properties/{property_id}")
-async def delete_property(property_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen panden verwijderen')
-
+async def delete_property(
+    property_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen panden verwijderen')),
+):
     prop = await fetchrow(
         "select id from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
@@ -1355,10 +1355,10 @@ async def delete_property(property_id: str, user: dict = Depends(get_current_use
 
 
 @api_router.post("/properties/{property_id}/regenerate-code", response_model=PropertyResponse)
-async def regenerate_join_code(property_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen codes regenereren')
-
+async def regenerate_join_code(
+    property_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen codes regenereren')),
+):
     prop = await fetchrow(
         "select * from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
@@ -1379,10 +1379,10 @@ async def regenerate_join_code(property_id: str, user: dict = Depends(get_curren
 
 
 @api_router.get("/properties/{property_id}/tenants", response_model=List[TenantResponse])
-async def get_property_tenants(property_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen huurders bekijken')
-
+async def get_property_tenants(
+    property_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen huurders bekijken')),
+):
     prop = await fetchrow(
         "select id from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
@@ -1413,10 +1413,11 @@ async def get_property_tenants(property_id: str, user: dict = Depends(get_curren
 
 
 @api_router.delete("/properties/{property_id}/tenants/{tenant_id}")
-async def remove_tenant(property_id: str, tenant_id: str, user: dict = Depends(get_current_user)):
-    if user['role'] != 'landlord':
-        raise HTTPException(status_code=403, detail='Alleen verhuurders kunnen huurders verwijderen')
-
+async def remove_tenant(
+    property_id: str,
+    tenant_id: str,
+    user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen huurders verwijderen')),
+):
     prop = await fetchrow(
         "select id from properties where id = $1 and landlord_id = $2",
         uuid.UUID(property_id), uuid.UUID(user['id']),
