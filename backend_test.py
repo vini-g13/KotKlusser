@@ -381,7 +381,7 @@ class KotKlusserAPITester:
             "description": "De kraan in de badkamer lekt en druppelt continu. Het probleem bestaat al sinds gisteren.",
             "category": "sanitair",
             "location": "badkamer",
-            "urgency": "normaal"
+            "urgency": "normal"
         }
         
         status, response = self.make_request('POST', 'tickets', test_data, self.student_token)
@@ -453,12 +453,12 @@ class KotKlusserAPITester:
             return False
         
         test_data = {
-            "status": "in_behandeling",
+            "status": "in_progress",
             "notes": "Reparateur is op de hoogte gebracht"
         }
-        
+
         status, response = self.make_request('PATCH', f'tickets/{self.test_ticket_id}', test_data, self.landlord_token)
-        success = status == 200 and response.get('status') == 'in_behandeling'
+        success = status == 200 and response.get('status') == 'in_progress'
         
         if success:
             self.log_test("Update Ticket Status", True, f"Status updated to {response['status']}")
@@ -563,12 +563,14 @@ class KotKlusserAPITester:
         return success
 
     def test_send_reminders(self):
-        """Test sending reminders (landlord only)"""
-        if not self.landlord_token:
-            self.log_test("Send Reminders", False, "No landlord token")
+        """Test sending a reminder for a ticket (student only)"""
+        if not self.test_ticket_id or not self.student_token:
+            self.log_test("Send Reminders", False, "No ticket ID or student token")
             return False
-        
-        status, response = self.make_request('POST', 'admin/send-reminders', token=self.landlord_token)
+
+        status, response = self.make_request(
+            'POST', f'tickets/{self.test_ticket_id}/send-reminder', token=self.student_token
+        )
         success = status == 200 and 'message' in response
         
         if success:
@@ -588,9 +590,9 @@ class KotKlusserAPITester:
         
         # Create a small test image
         import io
-        from PIL import Image
-        
+
         try:
+            from PIL import Image
             # Create a simple test image
             img = Image.new('RGB', (100, 100), color='red')
             img_buffer = io.BytesIO()

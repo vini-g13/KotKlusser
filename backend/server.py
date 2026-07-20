@@ -2042,6 +2042,11 @@ async def mark_ticket_read_student(ticket_id: str, user: dict = Depends(get_curr
 
 
 async def _get_ticket_with_access_check(ticket_id: str, user: dict) -> dict:
+    try:
+        ticket_uuid = uuid.UUID(ticket_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail='Ticket niet gevonden')
+
     row = await fetchrow(
         """
         select t.*, pr.name as created_by_name, p.name as property_name, p.landlord_id,
@@ -2052,7 +2057,7 @@ async def _get_ticket_with_access_check(ticket_id: str, user: dict) -> dict:
         left join profiles c on c.id = t.contractor_id
         where t.id = $1
         """,
-        uuid.UUID(ticket_id),
+        ticket_uuid,
     )
     if not row:
         raise HTTPException(status_code=404, detail='Ticket niet gevonden')
