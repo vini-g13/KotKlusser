@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../App";
+import { useJoinCodeVerification } from "../hooks/useJoinCodeVerification";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Badge } from "../components/ui/badge";
@@ -45,7 +46,8 @@ const StudentDashboard = () => {
   const [showJoinDialog, setShowJoinDialog] = useState(false);
   const [joinData, setJoinData] = useState({ join_code: "", room_number: "", floor: "" });
   const [joining, setJoining] = useState(false);
-  const [propertyPreview, setPropertyPreview] = useState(null);
+  const { propertyInfo: propertyPreview, verifyJoinCode: verifyJoinCodeRaw, setPropertyInfo: setPropertyPreview } = useJoinCodeVerification();
+  const verifyJoinCode = () => verifyJoinCodeRaw(joinData.join_code).catch(() => {});
 
   useEffect(() => {
     refreshUser();
@@ -82,18 +84,6 @@ const StudentDashboard = () => {
     toast.success("U bent uitgelogd");
   };
 
-  const verifyJoinCode = async () => {
-    if (joinData.join_code.length < 6) {
-      setPropertyPreview(null);
-      return;
-    }
-    try {
-      const response = await authAxios.get(`/properties/by-code/${joinData.join_code}`);
-      setPropertyPreview(response.data);
-    } catch (error) {
-      setPropertyPreview(null);
-    }
-  };
 
   const handleJoinProperty = async () => {
     if (!joinData.join_code || !joinData.room_number || !joinData.floor) {

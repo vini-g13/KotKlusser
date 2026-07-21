@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
-import { useAuth, API } from "../App";
+import { useAuth } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
@@ -8,15 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { toast } from "sonner";
 import { Building2, MapPin, DoorOpen, Layers, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
-import axios from "axios";
 import { formatPropertyAddress } from "../lib/utils";
+import { useJoinCodeVerification } from "../hooks/useJoinCodeVerification";
 
 const JoinProperty = () => {
   const { code } = useParams();
   const { user, authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
   
-  const [property, setProperty] = useState(null);
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [formData, setFormData] = useState({
@@ -28,11 +27,11 @@ const JoinProperty = () => {
     fetchProperty();
   }, [code]);
 
+  const { propertyInfo: property, verifyJoinCode } = useJoinCodeVerification();
+
   const fetchProperty = async () => {
     try {
-      const response = await axios.get(`${API}/properties/by-code/${code}`);
-      console.log("Fetched property:", response.data);
-      setProperty(response.data);
+      await verifyJoinCode(code);
     } catch (error) {
       toast.error("Ongeldige of verlopen uitnodigingscode");
     } finally {

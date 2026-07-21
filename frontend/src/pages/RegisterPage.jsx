@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
+import { useJoinCodeVerification } from "../hooks/useJoinCodeVerification";
 
 const PLAN_LABELS = { growth: "Growth", pro: "Pro" };
 const BILLING_LABELS = { monthly: "Maandelijks", yearly: "Jaarlijks" };
@@ -34,8 +35,9 @@ const RegisterPage = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [propertyInfo, setPropertyInfo] = useState(null);
+
   const { register } = useAuth();
+  const { propertyInfo, verifyJoinCode: verifyJoinCodeRaw, setPropertyInfo } = useJoinCodeVerification();
   const navigate = useNavigate();
 
   // Verify join code if provided
@@ -47,8 +49,7 @@ const RegisterPage = () => {
 
   const verifyJoinCode = async (code) => {
     try {
-      const response = await axios.get(`${API}/properties/by-code/${code}`);
-      setPropertyInfo(response.data);
+      await verifyJoinCodeRaw(code);
     } catch (error) {
       toast.error("Ongeldige uitnodigingscode");
       setFormData(prev => ({ ...prev, join_code: "" }));
