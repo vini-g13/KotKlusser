@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useAuth, API } from "../App";
+import { useAuth } from "../App";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, MapPin, Tag, AlertTriangle, Hammer, CheckCircle2, Clock, Building2, Image
@@ -48,7 +48,7 @@ const AannemerKlusDetail = () => {
 
   const fetchKlus = async () => {
     try {
-      const res = await authAxios.get(`${API}/contractor/tickets/${ticket_id}`);
+      const res = await authAxios.get(`/contractor/tickets/${ticket_id}`);
       setKlus(res.data);
     } catch {
       toast.error("Klus niet gevonden");
@@ -61,7 +61,7 @@ const AannemerKlusDetail = () => {
   const updateStatus = async (nieuwStatus) => {
     setUpdating(true);
     try {
-      await authAxios.patch(`${API}/contractor/tickets/${ticket_id}/status`, { status: nieuwStatus });
+      await authAxios.patch(`/contractor/tickets/${ticket_id}/status`, { status: nieuwStatus });
       setKlus(prev => ({ ...prev, status: nieuwStatus }));
       toast.success(`Status bijgewerkt naar "${nieuwStatus.replace("_", " ")}"`);
     } catch {

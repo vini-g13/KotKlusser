@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAuth, API } from "../App";
+import { useAuth } from "../App";
 import { motion } from "framer-motion";
 import {
   Wrench, ChevronRight, LogOut, AlertTriangle, Clock, CheckCircle2, Hammer
@@ -63,7 +63,7 @@ const AannemerDashboard = () => {
 
   const fetchKlussen = async () => {
     try {
-      const res = await authAxios.get(`${API}/contractor/tickets`);
+      const res = await authAxios.get(`/contractor/tickets`);
       setKlussen(res.data);
     } catch {
       toast.error("Klussen laden mislukt");
