@@ -8,10 +8,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { Label } from "../components/ui/label";
 import { toast } from "sonner";
+import PropertyFormFields from "../components/PropertyFormFields";
+import FloorCountConfirmDialog from "../components/FloorCountConfirmDialog";
+import { useFloorCountConfirm } from "../hooks/useFloorCountConfirm";
 import {
   Search, LogOut, User, Clock, Menu, X, Plus, Mail,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle,
-  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Home, Building2, Users, MapPin, Layers,
+  CheckCircle, AlertCircle, Calendar, ArrowRight, BarChart3, Home, Building2, Users,
   BarChart2, Send, Inbox, AlertTriangle, MessageSquare, Settings
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -84,9 +87,10 @@ const LandlordDashboard = () => {
   
   // New property dialog
   const [showNewProperty, setShowNewProperty] = useState(false);
-  const [newPropertyData, setNewPropertyData] = useState({ name: "", address: "", floor_count: "" });
+  const [newPropertyData, setNewPropertyData] = useState({
+    name: "", street: "", house_number: "", postal_code: "", city: "", floor_count: "",
+  });
   const [creatingProperty, setCreatingProperty] = useState(false);
-  const [showFloorConfirm, setShowFloorConfirm] = useState(false);
   
   // Email change requests
   const [pendingEmailRequests, setPendingEmailRequests] = useState([]);
@@ -172,9 +176,10 @@ const LandlordDashboard = () => {
     try {
       const response = await authAxios.post("/properties", newPropertyData);
       setProperties([...properties, response.data]);
-      setNewPropertyData({ name: "", address: "", floor_count: "" });
+      setNewPropertyData({ name: "", street: "", house_number: "", postal_code: "", city: "", floor_count: "" });
       setShowNewProperty(false);
       await refreshUser();
+      window.dispatchEvent(new CustomEvent('propertiesUpdated'));
       toast.success("Pand aangemaakt!");
     } catch (error) {
       toast.error(error.response?.data?.detail || "Kon pand niet aanmaken");
@@ -183,8 +188,12 @@ const LandlordDashboard = () => {
     }
   };
 
+  const { showConfirm: showFloorConfirm, requestSubmit: requestCreateProperty, cancel: cancelFloorConfirm, confirm: confirmFloorConfirm } =
+    useFloorCountConfirm(submitNewProperty);
+
   const createProperty = async () => {
-    if (!newPropertyData.name.trim() || !newPropertyData.address.trim()) {
+    if (!newPropertyData.name.trim() || !newPropertyData.street.trim() || !newPropertyData.house_number.trim()
+        || !newPropertyData.postal_code.trim() || !newPropertyData.city.trim()) {
       toast.error("Vul alle velden in");
       return;
     }
@@ -192,11 +201,7 @@ const LandlordDashboard = () => {
       toast.error("Vul het aantal verdiepingen in");
       return;
     }
-    if (newPropertyData.floor_count === 0) {
-      setShowFloorConfirm(true);
-      return;
-    }
-    await submitNewProperty();
+    requestCreateProperty(newPropertyData.floor_count);
   };
 
   const tileStats = {
@@ -320,53 +325,12 @@ const LandlordDashboard = () => {
                 <DialogHeader>
                   <DialogTitle className="text-white">Nieuw pand toevoegen</DialogTitle>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Naam van het pand</Label>
-                    <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                      <Input
-                        value={newPropertyData.name}
-                        onChange={(e) => setNewPropertyData({ ...newPropertyData, name: e.target.value })}
-                        placeholder="Bijv. Studentenhuis De Brug"
-                        className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-                        data-testid="new-property-name"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Adres</Label>
-                    <div className="relative">
-                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                      <Input
-                        value={newPropertyData.address}
-                        onChange={(e) => setNewPropertyData({ ...newPropertyData, address: e.target.value })}
-                        placeholder="Bijv. Naamsestraat 123, 3000 Leuven"
-                        className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-                        data-testid="new-property-address"
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-slate-300">Aantal verdiepingen</Label>
-                    <div className="relative">
-                      <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-                      <Input
-                        type="number"
-                        min="0"
-                        value={newPropertyData.floor_count === "" ? "" : newPropertyData.floor_count}
-                        onChange={(e) => setNewPropertyData({ ...newPropertyData, floor_count: e.target.value === "" ? "" : Number(e.target.value) })}
-                        placeholder="Bijv. 3"
-                        className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500 [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
-                        data-testid="new-property-floors"
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      {newPropertyData.floor_count === "" || newPropertyData.floor_count === 0
-                        ? "Genereert automatisch de verdiepingen van uw pand"
-                        : `Genereert: Gelijkvloers + Verdieping 1 t/m ${newPropertyData.floor_count}`}
-                    </p>
-                  </div>
+                <div className="py-4">
+                  <PropertyFormFields
+                    formData={newPropertyData}
+                    onChange={(field, value) => setNewPropertyData({ ...newPropertyData, [field]: value })}
+                    testIdPrefix="new-property"
+                  />
                 </div>
                 <DialogFooter>
                   <Button
@@ -528,32 +492,7 @@ const LandlordDashboard = () => {
       </AnimatePresence>
 
       {/* Floor count confirmation dialog */}
-      <Dialog open={showFloorConfirm} onOpenChange={setShowFloorConfirm}>
-        <DialogContent className="bg-[#161425] border-white/10">
-          <DialogHeader>
-            <DialogTitle className="text-white">Bevestiging aantal verdiepingen</DialogTitle>
-          </DialogHeader>
-          <p className="text-slate-300 py-2">
-            Uw pand heeft enkel een gelijkvloers, zonder extra verdiepingen. Klopt dit?
-          </p>
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowFloorConfirm(false)}
-              className="border-white/10 text-white"
-            >
-              Nee, aanpassen
-            </Button>
-            <Button
-              onClick={() => { setShowFloorConfirm(false); submitNewProperty(); }}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white"
-              data-testid="confirm-floor-zero"
-            >
-              Ja, bevestigen
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <FloorCountConfirmDialog open={showFloorConfirm} onCancel={cancelFloorConfirm} onConfirm={confirmFloorConfirm} />
 
       {/* Main content */}
       <main className="flex-1 lg:ml-64 min-w-0">
