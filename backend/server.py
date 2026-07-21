@@ -247,18 +247,27 @@ class TileConfigUpdate(BaseModel):
 
 class PropertyCreate(BaseModel):
     name: str
-    address: str
+    street: str
+    house_number: str
+    postal_code: str
+    city: str
     floor_count: int = 5
 
 class PropertyUpdate(BaseModel):
     name: Optional[str] = None
-    address: Optional[str] = None
+    street: Optional[str] = None
+    house_number: Optional[str] = None
+    postal_code: Optional[str] = None
+    city: Optional[str] = None
     floor_count: Optional[int] = None
 
 class PropertyResponse(BaseModel):
     id: str
     name: str
-    address: str
+    street: str
+    house_number: str
+    postal_code: str
+    city: str
     landlord_id: str
     join_code: str
     join_link: str
@@ -1230,7 +1239,10 @@ def _property_row_to_response(prop: dict, tenant_count: int) -> PropertyResponse
     return PropertyResponse(
         id=str(prop['id']),
         name=prop['name'],
-        address=prop['address'],
+        street=prop['street'],
+        house_number=prop['house_number'],
+        postal_code=prop['postal_code'],
+        city=prop['city'],
         landlord_id=str(prop['landlord_id']),
         join_code=prop['join_code'],
         join_link=f"{APP_URL}/join/{prop['join_code']}",
@@ -1255,11 +1267,12 @@ async def create_property(
 
     row = await fetchrow(
         """
-        insert into properties (id, landlord_id, name, address, join_code, floor_count)
-        values ($1, $2, $3, $4, $5, $6)
+        insert into properties (id, landlord_id, name, street, house_number, postal_code, city, join_code, floor_count)
+        values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         returning *
         """,
-        property_id, uuid.UUID(user['id']), prop.name, prop.address, join_code, floor_count,
+        property_id, uuid.UUID(user['id']), prop.name, prop.street, prop.house_number,
+        prop.postal_code, prop.city, join_code, floor_count,
     )
     return _property_row_to_response(row, 0)
 
@@ -1315,9 +1328,18 @@ async def update_property(
     if update.name:
         args.append(update.name)
         sets.append(f"name = ${len(args)}")
-    if update.address:
-        args.append(update.address)
-        sets.append(f"address = ${len(args)}")
+    if update.street:
+        args.append(update.street)
+        sets.append(f"street = ${len(args)}")
+    if update.house_number:
+        args.append(update.house_number)
+        sets.append(f"house_number = ${len(args)}")
+    if update.postal_code:
+        args.append(update.postal_code)
+        sets.append(f"postal_code = ${len(args)}")
+    if update.city:
+        args.append(update.city)
+        sets.append(f"city = ${len(args)}")
     if update.floor_count is not None:
         args.append(max(0, min(update.floor_count, 50)))
         sets.append(f"floor_count = ${len(args)}")
@@ -1479,7 +1501,10 @@ async def get_property_by_code(request: Request, join_code: str):
     return {
         'property_id': str(prop['id']),
         'property_name': prop['name'],
-        'address': prop['address'],
+        'street': prop['street'],
+        'house_number': prop['house_number'],
+        'postal_code': prop['postal_code'],
+        'city': prop['city'],
         'floor_count': floor_count,
         'floors': generate_floors(floor_count),
     }
