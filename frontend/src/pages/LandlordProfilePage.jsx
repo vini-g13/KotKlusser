@@ -15,6 +15,10 @@ import {
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import PropertyFormFields from "../components/PropertyFormFields";
+import FloorCountConfirmDialog from "../components/FloorCountConfirmDialog";
+import { useFloorCountConfirm } from "../hooks/useFloorCountConfirm";
+import { formatPropertyAddress } from "../lib/utils";
 
 const LandlordProfilePage = () => {
   const { user, authAxios, refreshUser } = useAuth();
@@ -34,7 +38,9 @@ const LandlordProfilePage = () => {
   // Properties
   const [properties, setProperties] = useState([]);
   const [editingProperty, setEditingProperty] = useState(null);
-  const [editPropertyData, setEditPropertyData] = useState({ name: "", address: "", floor_count: 0 });
+  const [editPropertyData, setEditPropertyData] = useState({
+    name: "", street: "", house_number: "", postal_code: "", city: "", floor_count: 0,
+  });
   const [savingProperty, setSavingProperty] = useState(false);
   const [pendingDeleteProperty, setPendingDeleteProperty] = useState(null);
 
@@ -74,16 +80,22 @@ const LandlordProfilePage = () => {
 
   const handleEditProperty = (prop) => {
     setEditingProperty(prop);
-    setEditPropertyData({ name: prop.name, address: prop.address, floor_count: prop.floor_count ?? 0 });
+    setEditPropertyData({
+      name: prop.name, street: prop.street, house_number: prop.house_number,
+      postal_code: prop.postal_code, city: prop.city, floor_count: prop.floor_count ?? 0,
+    });
   };
 
-  const handleSaveProperty = async () => {
+  const submitSaveProperty = async () => {
     setSavingProperty(true);
     try {
       const response = await authAxios.patch(`/properties/${editingProperty.id}`, {
         name: editPropertyData.name,
-        address: editPropertyData.address,
-        floor_count: editPropertyData.floor_count
+        street: editPropertyData.street,
+        house_number: editPropertyData.house_number,
+        postal_code: editPropertyData.postal_code,
+        city: editPropertyData.city,
+        floor_count: editPropertyData.floor_count,
       });
       setProperties(properties.map(p => p.id === editingProperty.id ? response.data : p));
       setEditingProperty(null);
@@ -94,6 +106,18 @@ const LandlordProfilePage = () => {
     } finally {
       setSavingProperty(false);
     }
+  };
+
+  const { showConfirm: showFloorConfirm, requestSubmit: requestSaveProperty, cancel: cancelFloorConfirm, confirm: confirmFloorConfirm } =
+    useFloorCountConfirm(submitSaveProperty);
+
+  const handleSaveProperty = () => {
+    if (!editPropertyData.name.trim() || !editPropertyData.street.trim() || !editPropertyData.house_number.trim()
+        || !editPropertyData.postal_code.trim() || !editPropertyData.city.trim()) {
+      toast.error("Vul alle velden in");
+      return;
+    }
+    requestSaveProperty(editPropertyData.floor_count);
   };
 
   const handleDeleteProperty = async () => {
@@ -508,7 +532,7 @@ const LandlordProfilePage = () => {
                       <p className="text-white font-medium truncate">{prop.name}</p>
                       <p className="text-sm text-slate-400 flex items-center gap-1 mt-0.5">
                         <MapPin className="w-3 h-3 shrink-0" />
-                        <span className="truncate">{prop.address}</span>
+                        <span className="truncate">{formatPropertyAddress(prop)}</span>
                       </p>
                       <div className="flex gap-2 mt-1.5">
                         <Badge className="bg-white/5 text-slate-400 border-white/10 text-xs">
@@ -566,34 +590,12 @@ const LandlordProfilePage = () => {
           <DialogHeader>
             <DialogTitle className="text-white">Pand bewerken</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label className="text-slate-300">Naam</Label>
-              <Input
-                value={editPropertyData.name}
-                onChange={(e) => setEditPropertyData({ ...editPropertyData, name: e.target.value })}
-                className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Adres</Label>
-              <Input
-                value={editPropertyData.address}
-                onChange={(e) => setEditPropertyData({ ...editPropertyData, address: e.target.value })}
-                className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-slate-300">Aantal verdiepingen</Label>
-              <Input
-                type="number"
-                min="0"
-                max="50"
-                value={editPropertyData.floor_count}
-                onChange={(e) => setEditPropertyData({ ...editPropertyData, floor_count: parseInt(e.target.value) || 0 })}
-                className="bg-[#1C1A2E] border-white/10 text-white [appearance:textfield] [&::-webkit-outer-spin-button]:hidden [&::-webkit-inner-spin-button]:hidden"
-              />
-            </div>
+          <div className="py-4">
+            <PropertyFormFields
+              formData={editPropertyData}
+              onChange={(field, value) => setEditPropertyData({ ...editPropertyData, [field]: value })}
+              testIdPrefix="edit-property"
+            />
           </div>
           <DialogFooter>
             <Button
@@ -613,6 +615,8 @@ const LandlordProfilePage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <FloorCountConfirmDialog open={showFloorConfirm} onCancel={cancelFloorConfirm} onConfirm={confirmFloorConfirm} />
 
       {/* Delete Property AlertDialog */}
       <AlertDialog open={!!pendingDeleteProperty} onOpenChange={(open) => !open && setPendingDeleteProperty(null)}>
