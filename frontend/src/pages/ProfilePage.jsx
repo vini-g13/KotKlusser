@@ -9,14 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import { 
   ArrowLeft, User, Mail, Phone, Building2, DoorOpen, Layers, 
-  Save, AlertCircle, Clock, Check, X, Edit3, Lock, ExternalLink
+  Save, AlertCircle, Clock, Check, X, Edit3, Lock
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
 
 const ProfilePage = () => {
-  const { user, authAxios, refreshUser, logout } = useAuth();
+  const { user, authAxios, refreshUser } = useAuth();
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState(null);

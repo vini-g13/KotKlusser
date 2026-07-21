@@ -165,8 +165,8 @@ const LandlordDashboard = () => {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     navigate("/");
     toast.success("U bent uitgelogd");
   };

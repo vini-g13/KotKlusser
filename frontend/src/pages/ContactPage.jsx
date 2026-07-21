@@ -9,13 +9,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import LandingNav from "../components/LandingNav";
 import LandingFooter from "../components/LandingFooter";
 import { API } from "../App";
-
-const Textarea = ({ className = "", ...props }) => (
-  <textarea
-    className={`flex w-full rounded-lg border border-white/10 bg-[#1C1A2E] px-3 py-2 text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 resize-none ${className}`}
-    {...props}
-  />
-);
+import { Textarea } from "../components/ui/textarea";
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 20 },

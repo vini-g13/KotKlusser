@@ -11,7 +11,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popove
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
 import { toast } from "sonner";
 import {
-  ArrowLeft, Send, Upload, Clock, MapPin, User, Image, X,
+  ArrowLeft, Send, Upload, Clock, MapPin, User, X,
   Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check, Bell,
   Search, UserPlus, UserMinus, HardHat
 } from "lucide-react";
@@ -48,7 +48,6 @@ const TicketDetail = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [updating, setUpdating] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
   const [scheduledDate, setScheduledDate] = useState(null);
   const [sendingReminder, setSendingReminder] = useState(false);
   const [showReminderDialog, setShowReminderDialog] = useState(false);
