@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { Building2, MapPin, DoorOpen, Layers, ArrowRight, Check } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
+import { formatPropertyAddress } from "../lib/utils";
 
 const JoinProperty = () => {
   const { code } = useParams();
@@ -90,7 +91,7 @@ const JoinProperty = () => {
               <h1 className="text-2xl font-bold text-white font-['Outfit'] mb-2">
                 Uitnodiging voor {property.property_name}
               </h1>
-              <p className="text-slate-400 mb-2">{property.address}</p>
+              <p className="text-slate-400 mb-2">{formatPropertyAddress(property)}</p>
               <p className="text-slate-500 mb-8">
                 Log in of maak een account aan om u aan te sluiten bij dit pand.
               </p>
@@ -233,7 +234,7 @@ const JoinProperty = () => {
             Aansluiten bij pand
           </h1>
           <p className="text-slate-400">{property.property_name}</p>
-          <p className="text-sm text-slate-500">{property.address}</p>
+          <p className="text-sm text-slate-500">{formatPropertyAddress(property)}</p>
         </div>
 
         {/* Form */}

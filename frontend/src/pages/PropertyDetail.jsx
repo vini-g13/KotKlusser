@@ -13,6 +13,7 @@ import {
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import { formatPropertyAddress } from "../lib/utils";
 
 const PropertyDetail = () => {
   const { id } = useParams();
@@ -114,7 +115,7 @@ const PropertyDetail = () => {
           </Link>
           <div className="flex-1 min-w-0">
             <h1 className="text-white font-medium truncate">{property.name}</h1>
-            <p className="text-xs text-slate-400 truncate">{property.address}</p>
+            <p className="text-xs text-slate-400 truncate">{formatPropertyAddress(property)}</p>
           </div>
         </div>
       </header>
@@ -137,7 +138,7 @@ const PropertyDetail = () => {
                 <h2 className="text-xl font-semibold text-white mb-1">{property.name}</h2>
                 <p className="text-slate-400 flex items-center gap-2">
                   <MapPin className="w-4 h-4" />
-                  {property.address}
+                  {formatPropertyAddress(property)}
                 </p>
               </div>
               <Badge className="bg-indigo-500/20 text-indigo-400 border-indigo-500/30">
