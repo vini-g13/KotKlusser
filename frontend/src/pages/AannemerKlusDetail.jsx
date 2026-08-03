@@ -3,31 +3,22 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../App";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, MapPin, Tag, AlertTriangle, Hammer, CheckCircle2, Clock, Building2, Image
+  ArrowLeft, MapPin, Tag, Hammer, CheckCircle2, Clock, Building2
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
+import TicketStatusStepper from "../components/TicketStatusStepper";
+import TicketPhotoGallery from "../components/TicketPhotoGallery";
+import UrgencyBadge from "../components/UrgencyBadge";
 
 // Cleanup sprint 5 (2026-07): foto's staan niet meer als base64 embedded in de
 // ticket-rij, maar in een private Supabase Storage bucket ("ticket-photos").
 // De backend geeft in `klus.photos` al kant-en-klare, tijdelijke signed URLs
 // terug (1u geldig) — hier hoeft dus geen URL meer opgebouwd te worden.
 
-const STATUS_STEPS = [
-  { key: "sent",        label: "Verstuurd" },
-  { key: "received",    label: "Ontvangen" },
-  { key: "in_progress", label: "In behandeling" },
-  { key: "resolved",    label: "Opgelost" },
-];
-
-// Cleanup sprint 5 (2026-07): "kritiek" samengevoegd met "urgent" — zie
-// AannemerDashboard.jsx voor dezelfde noot.
-const URGENCY_CONFIG = {
-  low:    { label: "Laag",    color: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20" },
-  normal: { label: "Normaal", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
-  high:   { label: "Hoog",    color: "text-orange-400 bg-orange-500/10 border-orange-500/20" },
-  urgent: { label: "Urgent",  color: "text-red-400 bg-red-500/10 border-red-500/20" },
-};
+// Sub-project B2 (kotklusser-cleanup-plan.md sectie 3.4): stepper, fotogalerij
+// en urgentie-badge zijn verhuisd naar gedeelde componenten, zie
+// docs/superpowers/specs/2026-07-21-ticket-detail-shared-subcomponents-design.md.
 
 const formatDate = (iso) => {
   if (!iso) return "–";
@@ -81,10 +72,8 @@ const AannemerKlusDetail = () => {
 
   if (!klus) return null;
 
-  const currentIdx = STATUS_STEPS.findIndex(s => s.key === klus.status);
   const isInBehandeling = klus.status === "in_progress";
   const isOpgelost = klus.status === "resolved";
-  const urgencyCfg = URGENCY_CONFIG[klus.urgency] || URGENCY_CONFIG.normal;
 
   return (
     <div className="min-h-screen bg-[#0B0A14]">
@@ -107,10 +96,7 @@ const AannemerKlusDetail = () => {
         {/* Titel + badges */}
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
           <div className="flex flex-wrap items-center gap-2 mb-2">
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${urgencyCfg.color}`}>
-              {klus.urgency === "urgent" && <AlertTriangle className="w-3 h-3 mr-1" />}
-              {urgencyCfg.label}
-            </span>
+            <UrgencyBadge urgency={klus.urgency} />
             <span className="text-xs text-slate-500 font-mono">{klus.ticket_number}</span>
           </div>
           <h1 className="text-2xl font-bold text-white font-['Outfit']">{klus.title}</h1>
@@ -124,35 +110,7 @@ const AannemerKlusDetail = () => {
           transition={{ duration: 0.4, delay: 0.05 }}
           className="bg-[#161425] border border-white/5 rounded-xl p-5"
         >
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Status</p>
-          <div className="flex items-center gap-0">
-            {STATUS_STEPS.map((step, i) => {
-              const done = i <= currentIdx;
-              const active = i === currentIdx;
-              return (
-                <div key={step.key} className="flex items-center flex-1 last:flex-none">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-7 h-7 rounded-full border-2 flex items-center justify-center transition-colors ${
-                      active ? "border-indigo-500 bg-indigo-500/20" :
-                      done   ? "border-indigo-500 bg-indigo-500" :
-                               "border-white/15 bg-transparent"
-                    }`}>
-                      {done && !active && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                      {active && <div className="w-2.5 h-2.5 rounded-full bg-indigo-400" />}
-                    </div>
-                    <span className={`text-xs mt-1.5 text-center leading-tight max-w-[60px] ${
-                      active ? "text-indigo-400 font-medium" :
-                      done   ? "text-slate-300" :
-                               "text-slate-600"
-                    }`}>{step.label}</span>
-                  </div>
-                  {i < STATUS_STEPS.length - 1 && (
-                    <div className={`flex-1 h-0.5 mb-5 mx-1 rounded ${i < currentIdx ? "bg-indigo-500" : "bg-white/10"}`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <TicketStatusStepper status={klus.status} />
         </motion.div>
 
         {/* Acties */}
@@ -252,20 +210,7 @@ const AannemerKlusDetail = () => {
             transition={{ duration: 0.4, delay: 0.2 }}
             className="bg-[#161425] border border-white/5 rounded-xl p-5"
           >
-            <div className="flex items-center gap-2 mb-3">
-              <Image className="w-4 h-4 text-slate-500" />
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Foto's</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {klus.photos.map((url) => (
-                <img
-                  key={url}
-                  src={url}
-                  alt="Foto van de klus"
-                  className="w-full rounded-lg object-cover max-h-72"
-                />
-              ))}
-            </div>
+            <TicketPhotoGallery photos={klus.photos} />
           </motion.div>
         )}
       </main>
