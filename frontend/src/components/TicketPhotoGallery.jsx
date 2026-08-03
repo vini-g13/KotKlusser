@@ -1,4 +1,4 @@
-import { Dialog, DialogContent, DialogTrigger } from "./ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "./ui/dialog";
 
 // Sub-project B2 (kotklusser-cleanup-plan.md sectie 3.4, zie
 // docs/superpowers/specs/2026-07-21-ticket-detail-shared-subcomponents-design.md):
@@ -11,7 +11,6 @@ const TicketPhotoGallery = ({ photos }) => {
 
   return (
     <div>
-      <p className="text-sm text-slate-400 mb-3">Foto's</p>
       <div className="flex gap-3 overflow-x-auto pb-2">
         {photos.map((photo, idx) => (
           <Dialog key={idx}>
@@ -25,6 +24,7 @@ const TicketPhotoGallery = ({ photos }) => {
               </button>
             </DialogTrigger>
             <DialogContent className="bg-[#161425] border-white/10 max-w-3xl">
+              <DialogTitle className="sr-only">Foto {idx + 1}</DialogTitle>
               <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-auto rounded-lg" />
             </DialogContent>
           </Dialog>

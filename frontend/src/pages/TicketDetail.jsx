@@ -8,7 +8,7 @@ import { Textarea } from "../components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "../components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, X,
@@ -285,6 +285,7 @@ const TicketDetail = () => {
           >
             {/* Status timeline */}
             <div className="mb-6">
+              <p className="text-sm text-slate-400 mb-3">Status</p>
               <TicketStatusStepper status={ticket.status} />
             </div>
 
@@ -356,6 +357,7 @@ const TicketDetail = () => {
             {/* Photos */}
             {ticket.photos?.length > 0 && (
               <div className="mb-6">
+                <p className="text-sm text-slate-400 mb-3">Foto's</p>
                 <TicketPhotoGallery photos={ticket.photos} />
               </div>
             )}

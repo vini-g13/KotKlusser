@@ -12,7 +12,7 @@ export const STATUS_ORDER = ["sent", "received", "in_progress", "resolved"];
 export const STATUS_LABELS = {
   sent: "Verstuurd",
   received: "Ontvangen",
-  in_progress: "In Behandeling",
+  in_progress: "In behandeling",
   resolved: "Opgelost",
 };
 
@@ -21,7 +21,6 @@ const TicketStatusStepper = ({ status }) => {
 
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Status</p>
       <div className="flex items-center gap-0">
         {STATUS_ORDER.map((step, i) => {
           const done = i <= currentIdx;

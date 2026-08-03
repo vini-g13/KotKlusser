@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../App";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, MapPin, Tag, Hammer, CheckCircle2, Clock, Building2
+  ArrowLeft, MapPin, Tag, Hammer, CheckCircle2, Clock, Building2, Image
 } from "lucide-react";
 import { Button } from "../components/ui/button";
 import { toast } from "sonner";
@@ -110,6 +110,7 @@ const AannemerKlusDetail = () => {
           transition={{ duration: 0.4, delay: 0.05 }}
           className="bg-[#161425] border border-white/5 rounded-xl p-5"
         >
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-4">Status</p>
           <TicketStatusStepper status={klus.status} />
         </motion.div>
 
@@ -210,6 +211,10 @@ const AannemerKlusDetail = () => {
             transition={{ duration: 0.4, delay: 0.2 }}
             className="bg-[#161425] border border-white/5 rounded-xl p-5"
           >
+            <div className="flex items-center gap-2 mb-3">
+              <Image className="w-4 h-4 text-slate-500" />
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Foto's</p>
+            </div>
             <TicketPhotoGallery photos={klus.photos} />
           </motion.div>
         )}
