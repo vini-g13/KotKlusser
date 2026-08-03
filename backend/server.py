@@ -1597,6 +1597,7 @@ async def search_contractors(
         where pr.role = 'contractor' and (
             pr.name ilike $1 or au.email ilike $1 or pr.specialty ilike $1 or pr.region ilike $1
         )
+        order by pr.name
         limit 10
         """,
         pattern,

@@ -190,14 +190,14 @@ const RegisterPage = () => {
                 setFormData({ ...formData, role: 'student' });
                 setPropertyInfo(null);
               }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
-                formData.role === 'student' 
-                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400' 
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-lg border text-sm transition-colors ${
+                formData.role === 'student'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400'
                   : 'bg-[#161425] border-white/10 text-slate-400 hover:border-white/20'
               }`}
               data-testid="register-role-student"
             >
-              <GraduationCap className="w-5 h-5" />
+              <GraduationCap className="w-4 h-4" />
               Student
             </button>
             <button
@@ -206,14 +206,14 @@ const RegisterPage = () => {
                 setFormData({ ...formData, role: 'landlord', join_code: '', room_number: '', floor: '' });
                 setPropertyInfo(null);
               }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
-                formData.role === 'landlord' 
-                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400' 
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-lg border text-sm transition-colors ${
+                formData.role === 'landlord'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400'
                   : 'bg-[#161425] border-white/10 text-slate-400 hover:border-white/20'
               }`}
               data-testid="register-role-landlord"
             >
-              <Building2 className="w-5 h-5" />
+              <Building2 className="w-4 h-4" />
               Verhuurder
             </button>
             <button
@@ -222,14 +222,14 @@ const RegisterPage = () => {
                 setFormData({ ...formData, role: 'contractor', join_code: '', room_number: '', floor: '' });
                 setPropertyInfo(null);
               }}
-              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 px-2 rounded-lg border text-sm transition-colors ${
                 formData.role === 'contractor'
                   ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400'
                   : 'bg-[#161425] border-white/10 text-slate-400 hover:border-white/20'
               }`}
               data-testid="register-role-contractor"
             >
-              <HardHat className="w-5 h-5" />
+              <HardHat className="w-4 h-4" />
               Aannemer
             </button>
           </div>

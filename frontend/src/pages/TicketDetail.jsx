@@ -523,7 +523,9 @@ const TicketDetail = () => {
                               </div>
                               <div className="min-w-0">
                                 <p className="text-sm text-white font-medium">{a.name}</p>
-                                <p className="text-xs text-slate-400 truncate">{a.specialty || a.email}</p>
+                                <p className="text-xs text-slate-400 truncate">
+                                  {[a.specialty, a.region].filter(Boolean).join(' · ') || a.email}
+                                </p>
                               </div>
                             </button>
                           ))}

@@ -34,6 +34,14 @@ def test_search_contractors_matches_on_specialty():
     results = resp.json()
     assert any(r["email"] == contractor_email for r in results), results
 
+    unrelated_resp = requests.get(
+        f"{BASE_URL}/api/contractors/search",
+        params={"q": f"nonexistent-{uuid.uuid4().hex[:8]}"},
+        headers={"Authorization": f"Bearer {landlord_token}"},
+    )
+    assert unrelated_resp.status_code == 200, unrelated_resp.text
+    assert not any(r["email"] == contractor_email for r in unrelated_resp.json())
+
 
 def test_search_contractors_matches_on_region():
     _, landlord_token = create_confirmed_test_user(
@@ -62,3 +70,11 @@ def test_search_contractors_matches_on_region():
     assert resp.status_code == 200, resp.text
     results = resp.json()
     assert any(r["email"] == contractor_email for r in results), results
+
+    unrelated_resp = requests.get(
+        f"{BASE_URL}/api/contractors/search",
+        params={"q": f"nonexistent-{uuid.uuid4().hex[:8]}"},
+        headers={"Authorization": f"Bearer {landlord_token}"},
+    )
+    assert unrelated_resp.status_code == 200, unrelated_resp.text
+    assert not any(r["email"] == contractor_email for r in unrelated_resp.json())
