@@ -12,12 +12,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, X,
-  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Check, Bell,
+  Wrench, Zap, Flame, Wifi, ChefHat, HelpCircle, CalendarIcon, Bell,
   Search, UserPlus, UserMinus, HardHat
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
 import { nl } from "date-fns/locale";
+import TicketStatusStepper, { STATUS_ORDER, STATUS_LABELS } from "../components/TicketStatusStepper";
+import TicketPhotoGallery from "../components/TicketPhotoGallery";
+import UrgencyBadge from "../components/UrgencyBadge";
 
 const categoryIcons = {
   sanitair: <Wrench className="w-5 h-5" />,
@@ -27,14 +30,6 @@ const categoryIcons = {
   keuken: <ChefHat className="w-5 h-5" />,
   anders: <HelpCircle className="w-5 h-5" />
 };
-
-const statusLabels = {
-  sent: "Verstuurd",
-  received: "Ontvangen",
-  in_progress: "In Behandeling",
-  resolved: "Opgelost"
-};
-const statusOrder = ['sent', 'received', 'in_progress', 'resolved'];
 
 const TicketDetail = () => {
   const { id } = useParams();
@@ -254,8 +249,6 @@ const TicketDetail = () => {
 
   if (!ticket) return null;
 
-  const currentStatusIndex = statusOrder.indexOf(ticket.status);
-
   return (
     <div className="min-h-screen bg-[#0B0A14] flex flex-col">
       {/* Header */}
@@ -271,9 +264,12 @@ const TicketDetail = () => {
             <p className="text-xs text-slate-500 font-mono">{ticket.ticket_number}</p>
             <h1 className="text-white font-medium truncate">{ticket.title}</h1>
           </div>
-          <Badge className={`status-${ticket.status}`}>
-            {statusLabels[ticket.status]}
-          </Badge>
+          <div className="flex items-center gap-2">
+            <UrgencyBadge urgency={ticket.urgency} />
+            <Badge className={`status-${ticket.status}`}>
+              {STATUS_LABELS[ticket.status]}
+            </Badge>
+          </div>
         </div>
       </header>
 
@@ -289,33 +285,7 @@ const TicketDetail = () => {
           >
             {/* Status timeline */}
             <div className="mb-6">
-              <p className="text-sm text-slate-400 mb-3">Status</p>
-              <div className="flex items-center">
-                {statusOrder.map((status, idx) => (
-                  <div key={status} className="flex items-center flex-1 last:flex-none">
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${idx <= currentStatusIndex
-                            ? 'bg-indigo-600 text-white'
-                            : 'bg-white/5 text-slate-500'
-                          }`}
-                      >
-                        {idx < currentStatusIndex ? (
-                          <Check className="w-4 h-4" />
-                        ) : (
-                          idx + 1
-                        )}
-                      </div>
-                      <span className="text-xs text-slate-500 mt-1 whitespace-nowrap">
-                        {statusLabels[status]}
-                      </span>
-                    </div>
-                    {idx < statusOrder.length - 1 && (
-                      <div className={`flex-1 h-0.5 mx-2 mb-4 ${idx < currentStatusIndex ? 'bg-indigo-600' : 'bg-white/10'}`} />
-                    )}
-                  </div>
-                ))}
-              </div>
+              <TicketStatusStepper status={ticket.status} />
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -386,25 +356,7 @@ const TicketDetail = () => {
             {/* Photos */}
             {ticket.photos?.length > 0 && (
               <div className="mb-6">
-                <p className="text-sm text-slate-400 mb-3">Foto's</p>
-                <div className="flex gap-3 overflow-x-auto pb-2">
-                  {ticket.photos.map((photo, idx) => (
-                    <Dialog key={idx}>
-                      <DialogTrigger asChild>
-                        <button className="shrink-0" data-testid={`photo-${idx}`}>
-                          <img
-                            src={photo}
-                            alt={`Foto ${idx + 1}`}
-                            className="w-24 h-24 object-cover rounded-lg hover:opacity-80 transition-opacity cursor-pointer"
-                          />
-                        </button>
-                      </DialogTrigger>
-                      <DialogContent className="bg-[#161425] border-white/10 max-w-3xl">
-                        <img src={photo} alt={`Foto ${idx + 1}`} className="w-full h-auto rounded-lg" />
-                      </DialogContent>
-                    </Dialog>
-                  ))}
-                </div>
+                <TicketPhotoGallery photos={ticket.photos} />
               </div>
             )}
 
@@ -469,10 +421,9 @@ const TicketDetail = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent className="bg-[#161425] border-white/10">
-                        <SelectItem value="sent">Verstuurd</SelectItem>
-                        <SelectItem value="received">Ontvangen</SelectItem>
-                        <SelectItem value="in_progress">In Behandeling</SelectItem>
-                        <SelectItem value="resolved">Opgelost</SelectItem>
+                        {STATUS_ORDER.map((s) => (
+                          <SelectItem key={s} value={s}>{STATUS_LABELS[s]}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -550,7 +501,7 @@ const TicketDetail = () => {
                           type="text"
                           value={aannemerSearch}
                           onChange={(e) => handleSearchAannemers(e.target.value)}
-                          placeholder="Zoek op naam of e-mail..."
+                          placeholder="Zoek op naam, e-mail, specialiteit of regio..."
                           className="w-full pl-9 pr-4 py-2.5 bg-[#1C1A2E] border border-white/10 rounded-lg text-white text-sm placeholder:text-slate-500 focus:border-indigo-500 focus:outline-none"
                         />
                         {searchLoading && (

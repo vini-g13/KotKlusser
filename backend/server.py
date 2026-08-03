@@ -1594,7 +1594,9 @@ async def search_contractors(
         select pr.id, pr.name, au.email, pr.specialty, pr.region
         from profiles pr
         join auth.users au on au.id = pr.id
-        where pr.role = 'contractor' and (pr.name ilike $1 or au.email ilike $1)
+        where pr.role = 'contractor' and (
+            pr.name ilike $1 or au.email ilike $1 or pr.specialty ilike $1 or pr.region ilike $1
+        )
         limit 10
         """,
         pattern,
