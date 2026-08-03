@@ -6,7 +6,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard, HardHat } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { useJoinCodeVerification } from "../hooks/useJoinCodeVerification";
@@ -31,7 +31,9 @@ const RegisterPage = () => {
     role: defaultRole,
     join_code: joinCode,
     room_number: "",
-    floor: ""
+    floor: "",
+    specialty: "",
+    region: ""
   });
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -214,6 +216,22 @@ const RegisterPage = () => {
               <Building2 className="w-5 h-5" />
               Verhuurder
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFormData({ ...formData, role: 'contractor', join_code: '', room_number: '', floor: '' });
+                setPropertyInfo(null);
+              }}
+              className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-lg border transition-colors ${
+                formData.role === 'contractor'
+                  ? 'bg-indigo-600/20 border-indigo-500 text-indigo-400'
+                  : 'bg-[#161425] border-white/10 text-slate-400 hover:border-white/20'
+              }`}
+              data-testid="register-role-contractor"
+            >
+              <HardHat className="w-5 h-5" />
+              Aannemer
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -368,7 +386,43 @@ const RegisterPage = () => {
               </>
             )}
 
-            <Button 
+            {formData.role === 'contractor' && (
+              <>
+                {!inviteToken && (
+                  <p className="text-sm text-slate-400 bg-[#161425] border border-white/10 rounded-lg p-3">
+                    Je registreert je als zelfstandig aannemer. Verhuurders op het platform kunnen je vinden en aan klussen toewijzen.
+                  </p>
+                )}
+                <div className="space-y-2">
+                  <Label htmlFor="specialty" className="text-slate-300">Specialiteit (optioneel)</Label>
+                  <Input
+                    id="specialty"
+                    name="specialty"
+                    type="text"
+                    value={formData.specialty}
+                    onChange={handleChange}
+                    placeholder="Bijv. Loodgieterij"
+                    className="bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                    data-testid="register-specialty-input"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="region" className="text-slate-300">Regio (optioneel)</Label>
+                  <Input
+                    id="region"
+                    name="region"
+                    type="text"
+                    value={formData.region}
+                    onChange={handleChange}
+                    placeholder="Bijv. Hasselt"
+                    className="bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                    data-testid="register-region-input"
+                  />
+                </div>
+              </>
+            )}
+
+            <Button
               type="submit" 
               className="w-full bg-indigo-600 hover:bg-indigo-700 text-white h-12 glow-primary mt-6"
               disabled={loading}
