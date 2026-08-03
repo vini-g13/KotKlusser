@@ -8,9 +8,11 @@ with the resulting session token. This helper reproduces exactly that,
 using the Supabase Admin API only to skip the email-confirmation step
 (email_confirm=True) so tests don't need a real mailbox.
 """
+import asyncio
 import os
 import uuid
 
+import asyncpg
 import requests
 from dotenv import load_dotenv
 from supabase import create_client
@@ -73,3 +75,23 @@ def create_confirmed_test_user(role: str, email: str, password: str, name: str, 
 def unique_test_email(prefix: str) -> str:
     """Fresh, collision-free email for tests that need a brand-new account each run."""
     return f"{prefix}_{uuid.uuid4().hex[:8]}@test.com"
+
+
+def get_contractor_invite_token(email: str) -> str:
+    """contractor_invites.token is generated server-side by invite_contractor()
+    and only ever sent via the invite email link — the API response never
+    includes it. Read it directly from Postgres via the same DATABASE_URL
+    this module already loads above (asyncpg is already a backend dependency)."""
+    async def _query():
+        # statement_cache_size=0 is VERPLICHT tegen Supabase's transaction pooler
+        # (poort 6543) — zie server.py get_pool() voor dezelfde reden. Zonder dit
+        # geeft asyncpg een DuplicatePreparedStatementError.
+        conn = await asyncpg.connect(os.environ['DATABASE_URL'], statement_cache_size=0)
+        try:
+            return await conn.fetchval(
+                "select token from contractor_invites where email = $1 order by created_at desc limit 1",
+                email,
+            )
+        finally:
+            await conn.close()
+    return asyncio.run(_query())

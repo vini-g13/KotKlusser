@@ -390,6 +390,9 @@ class AssignContractorRequest(BaseModel):
 class ContractorStatusUpdate(BaseModel):
     status: str  # 'in_progress' of 'resolved'
 
+class ContractorScopeUpdate(BaseModel):
+    property_ids: List[str]  # empty list = alle panden (onbeperkt)
+
 # ============ HELPER FUNCTIONS ============
 # hash_password/verify_password/create_token/create_refresh_token/
 # verify_refresh_token/store_refresh_token bestaan niet meer — Supabase Auth
@@ -1615,19 +1618,55 @@ async def my_contractors(
 ):
     rows = await fetch(
         """
-        select pr.id, pr.name, au.email, pr.specialty, pr.region
+        select pr.id, pr.name, au.email, pr.specialty, pr.region,
+               array_remove(array_agg(cpl.property_id), null) as scope_property_ids
         from profiles pr
         join auth.users au on au.id = pr.id
         join contractor_landlord_links cll on cll.contractor_id = pr.id
+        left join contractor_property_links cpl
+          on cpl.contractor_id = pr.id
+          and cpl.property_id in (select id from properties where landlord_id = $1)
         where cll.landlord_id = $1 and pr.role = 'contractor'
+        group by pr.id, pr.name, au.email, pr.specialty, pr.region
         """,
         uuid.UUID(current_user['id']),
     )
     return [
         {'id': str(r['id']), 'name': r['name'], 'email': r['email'],
-         'specialty': r.get('specialty') or '', 'region': r.get('region') or ''}
+         'specialty': r.get('specialty') or '', 'region': r.get('region') or '',
+         'scope_property_ids': [str(pid) for pid in (r['scope_property_ids'] or [])]}
         for r in rows
     ]
+
+
+@api_router.put("/contractors/{contractor_id}/property-scope")
+async def update_contractor_scope(
+    contractor_id: str,
+    data: ContractorScopeUpdate,
+    current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemer-scope aanpassen')),
+):
+    linked = await fetchval(
+        "select 1 from contractor_landlord_links where contractor_id = $1 and landlord_id = $2",
+        uuid.UUID(contractor_id), uuid.UUID(current_user['id']),
+    )
+    if not linked:
+        raise HTTPException(status_code=404, detail='Aannemer niet gekoppeld aan uw account')
+
+    if data.property_ids:
+        owned_count = await fetchval(
+            "select count(*) from properties where id = any($1::uuid[]) and landlord_id = $2",
+            [uuid.UUID(p) for p in data.property_ids], uuid.UUID(current_user['id']),
+        )
+        if owned_count != len(data.property_ids):
+            raise HTTPException(status_code=400, detail='Eén of meer panden zijn ongeldig')
+
+    await execute("delete from contractor_property_links where contractor_id = $1", uuid.UUID(contractor_id))
+    for property_id in data.property_ids:
+        await execute(
+            "insert into contractor_property_links (contractor_id, property_id) values ($1, $2)",
+            uuid.UUID(contractor_id), uuid.UUID(property_id),
+        )
+    return {'message': 'Scope bijgewerkt', 'property_ids': data.property_ids}
 
 
 async def _assert_landlord_owns_ticket(ticket_id: str, landlord_id: str) -> dict:
