@@ -40,7 +40,7 @@ def test_search_contractors_matches_on_specialty():
         headers={"Authorization": f"Bearer {landlord_token}"},
     )
     assert unrelated_resp.status_code == 200, unrelated_resp.text
-    assert not any(r["email"] == contractor_email for r in unrelated_resp.json())
+    assert unrelated_resp.json() == [], unrelated_resp.text
 
 
 def test_search_contractors_matches_on_region():
@@ -77,4 +77,4 @@ def test_search_contractors_matches_on_region():
         headers={"Authorization": f"Bearer {landlord_token}"},
     )
     assert unrelated_resp.status_code == 200, unrelated_resp.text
-    assert not any(r["email"] == contractor_email for r in unrelated_resp.json())
+    assert unrelated_resp.json() == [], unrelated_resp.text
