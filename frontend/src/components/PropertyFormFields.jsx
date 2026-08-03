@@ -19,21 +19,20 @@ const PropertyFormFields = ({ formData, onChange, testIdPrefix = "property" }) =
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label className="text-slate-300">Straat</Label>
-        <div className="relative">
-          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
-          <Input
-            value={formData.street}
-            onChange={(e) => onChange("street", e.target.value)}
-            placeholder="Bijv. Naamsestraat"
-            className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-            data-testid={`${testIdPrefix}-street`}
-          />
+      <div className="grid grid-cols-[2fr_1fr] gap-4">
+        <div className="space-y-2">
+          <Label className="text-slate-300">Straat</Label>
+          <div className="relative">
+            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+            <Input
+              value={formData.street}
+              onChange={(e) => onChange("street", e.target.value)}
+              placeholder="Bijv. Naamsestraat"
+              className="pl-10 bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+              data-testid={`${testIdPrefix}-street`}
+            />
+          </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label className="text-slate-300">Huisnummer</Label>
           <Input
@@ -44,6 +43,9 @@ const PropertyFormFields = ({ formData, onChange, testIdPrefix = "property" }) =
             data-testid={`${testIdPrefix}-house-number`}
           />
         </div>
+      </div>
+
+      <div className="grid grid-cols-[1fr_2fr] gap-4">
         <div className="space-y-2">
           <Label className="text-slate-300">Postcode</Label>
           <Input
@@ -54,17 +56,16 @@ const PropertyFormFields = ({ formData, onChange, testIdPrefix = "property" }) =
             data-testid={`${testIdPrefix}-postal-code`}
           />
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label className="text-slate-300">Stad</Label>
-        <Input
-          value={formData.city}
-          onChange={(e) => onChange("city", e.target.value)}
-          placeholder="Bijv. Leuven"
-          className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
-          data-testid={`${testIdPrefix}-city`}
-        />
+        <div className="space-y-2">
+          <Label className="text-slate-300">Stad</Label>
+          <Input
+            value={formData.city}
+            onChange={(e) => onChange("city", e.target.value)}
+            placeholder="Bijv. Leuven"
+            className="bg-[#1C1A2E] border-white/10 text-white placeholder:text-slate-500"
+            data-testid={`${testIdPrefix}-city`}
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
