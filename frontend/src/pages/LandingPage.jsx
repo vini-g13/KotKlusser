@@ -226,6 +226,11 @@ const LandingPage = () => {
                     Ik ben verhuurder
                   </Button>
                 </Link>
+                <Link to="/register?role=contractor">
+                  <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" data-testid="cta-contractor-btn">
+                    Ik ben aannemer
+                  </Button>
+                </Link>
               </div>
             </div>
           </div>
