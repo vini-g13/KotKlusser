@@ -6,7 +6,7 @@ import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { toast } from "sonner";
-import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard, HardHat } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Phone, ArrowLeft, GraduationCap, Building2, DoorOpen, Layers, Key, CreditCard, HardHat, Wrench, MapPin } from "lucide-react";
 import { motion } from "framer-motion";
 import axios from "axios";
 import { useJoinCodeVerification } from "../hooks/useJoinCodeVerification";
@@ -395,29 +395,35 @@ const RegisterPage = () => {
                 )}
                 <div className="space-y-2">
                   <Label htmlFor="specialty" className="text-slate-300">Specialiteit (optioneel)</Label>
-                  <Input
-                    id="specialty"
-                    name="specialty"
-                    type="text"
-                    value={formData.specialty}
-                    onChange={handleChange}
-                    placeholder="Bijv. Loodgieterij"
-                    className="bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
-                    data-testid="register-specialty-input"
-                  />
+                  <div className="relative">
+                    <Wrench className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <Input
+                      id="specialty"
+                      name="specialty"
+                      type="text"
+                      value={formData.specialty}
+                      onChange={handleChange}
+                      placeholder="Bijv. Loodgieterij"
+                      className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                      data-testid="register-specialty-input"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="region" className="text-slate-300">Regio (optioneel)</Label>
-                  <Input
-                    id="region"
-                    name="region"
-                    type="text"
-                    value={formData.region}
-                    onChange={handleChange}
-                    placeholder="Bijv. Hasselt"
-                    className="bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
-                    data-testid="register-region-input"
-                  />
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500" />
+                    <Input
+                      id="region"
+                      name="region"
+                      type="text"
+                      value={formData.region}
+                      onChange={handleChange}
+                      placeholder="Bijv. Hasselt"
+                      className="pl-10 bg-[#161425] border-white/10 text-white placeholder:text-slate-500 focus:border-indigo-500 h-12"
+                      data-testid="register-region-input"
+                    />
+                  </div>
                 </div>
               </>
             )}
