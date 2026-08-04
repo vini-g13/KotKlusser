@@ -4,13 +4,14 @@ import { useAuth } from "../App";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
+import { Checkbox } from "../components/ui/checkbox";
 import { Badge } from "../components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "../components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, User, Mail, Phone, Building2, MapPin,
-  Save, AlertCircle, Clock, Check, X, Edit3, Lock, Trash2
+  Save, AlertCircle, Clock, Check, X, Edit3, Lock, Trash2, HardHat
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { format } from "date-fns";
@@ -44,6 +45,13 @@ const LandlordProfilePage = () => {
   const [savingProperty, setSavingProperty] = useState(false);
   const [pendingDeleteProperty, setPendingDeleteProperty] = useState(null);
 
+  // Contractors ("Mijn Aannemers")
+  const [contractors, setContractors] = useState([]);
+  const [editingContractorScope, setEditingContractorScope] = useState(null);
+  const [scopeMode, setScopeMode] = useState("all"); // "all" | "specific"
+  const [selectedPropertyIds, setSelectedPropertyIds] = useState([]);
+  const [savingScope, setSavingScope] = useState(false);
+
   // Email change request
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [newEmail, setNewEmail] = useState("");
@@ -56,10 +64,11 @@ const LandlordProfilePage = () => {
 
   const fetchProfile = async () => {
     try {
-      const [profileRes, requestsRes, propsRes] = await Promise.all([
+      const [profileRes, requestsRes, propsRes, contractorsRes] = await Promise.all([
         authAxios.get("/profile"),
         authAxios.get("/profile/landlord-email-change-requests"),
-        authAxios.get("/properties")
+        authAxios.get("/properties"),
+        authAxios.get("/contractors/my-list")
       ]);
       setProfile(profileRes.data);
       setFormData({
@@ -70,6 +79,7 @@ const LandlordProfilePage = () => {
       });
       setEmailRequests(requestsRes.data);
       setProperties(propsRes.data);
+      setContractors(contractorsRes.data);
     } catch (error) {
       toast.error("Kon profiel niet laden");
       navigate("/verhuurder");
@@ -105,6 +115,40 @@ const LandlordProfilePage = () => {
       toast.error(error.response?.data?.detail || "Kon pand niet opslaan");
     } finally {
       setSavingProperty(false);
+    }
+  };
+
+  const handleEditContractorScope = (contractor) => {
+    setEditingContractorScope(contractor);
+    if (contractor.scope_property_ids.length === 0) {
+      setScopeMode("all");
+      setSelectedPropertyIds([]);
+    } else {
+      setScopeMode("specific");
+      setSelectedPropertyIds(contractor.scope_property_ids);
+    }
+  };
+
+  const togglePropertySelection = (propertyId) => {
+    setSelectedPropertyIds((prev) =>
+      prev.includes(propertyId) ? prev.filter((id) => id !== propertyId) : [...prev, propertyId]
+    );
+  };
+
+  const handleSaveContractorScope = async () => {
+    setSavingScope(true);
+    try {
+      const propertyIds = scopeMode === "all" ? [] : selectedPropertyIds;
+      await authAxios.put(`/contractors/${editingContractorScope.id}/property-scope`, { property_ids: propertyIds });
+      setContractors(contractors.map((c) =>
+        c.id === editingContractorScope.id ? { ...c, scope_property_ids: propertyIds } : c
+      ));
+      setEditingContractorScope(null);
+      toast.success("Scope bijgewerkt");
+    } catch (error) {
+      toast.error(error.response?.data?.detail || "Kon scope niet opslaan");
+    } finally {
+      setSavingScope(false);
     }
   };
 
@@ -569,6 +613,50 @@ const LandlordProfilePage = () => {
             )}
           </motion.div>
 
+          {/* Mijn Aannemers */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.38 }}
+            className="bg-[#161425] border border-white/5 rounded-xl p-6"
+          >
+            <h3 className="text-white font-medium mb-6 flex items-center gap-2">
+              <HardHat className="w-5 h-5 text-indigo-400" />
+              Mijn Aannemers
+            </h3>
+
+            {contractors.length === 0 ? (
+              <p className="text-sm text-slate-500">Nog geen aannemers gekoppeld. Wijs er één toe via een melding, of nodig er één uit.</p>
+            ) : (
+              <div className="space-y-3">
+                {contractors.map((contractor) => (
+                  <div key={contractor.id} className="flex items-center gap-4 p-3 rounded-lg bg-[#1C1A2E] border border-white/5">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium truncate">{contractor.name}</p>
+                      <p className="text-sm text-slate-400 truncate">
+                        {[contractor.specialty, contractor.region].filter(Boolean).join(' · ') || contractor.email}
+                      </p>
+                      <Badge className="bg-white/5 text-slate-400 border-white/10 text-xs mt-1.5">
+                        {contractor.scope_property_ids.length === 0
+                          ? "Alle panden"
+                          : `${contractor.scope_property_ids.length} specifiek${contractor.scope_property_ids.length === 1 ? "" : "e"} pand${contractor.scope_property_ids.length === 1 ? "" : "en"}`}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditContractorScope(contractor)}
+                      className="text-slate-400 hover:text-white hover:bg-white/5 shrink-0"
+                      data-testid={`edit-contractor-scope-${contractor.id}`}
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
           {/* Account Info */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -617,6 +705,77 @@ const LandlordProfilePage = () => {
       </Dialog>
 
       <FloorCountConfirmDialog open={showFloorConfirm} onCancel={cancelFloorConfirm} onConfirm={confirmFloorConfirm} />
+
+      {/* Edit Contractor Scope Dialog */}
+      <Dialog open={!!editingContractorScope} onOpenChange={(open) => !open && setEditingContractorScope(null)}>
+        <DialogContent className="bg-[#161425] border-white/10">
+          <DialogHeader>
+            <DialogTitle className="text-white">Scope aanpassen — {editingContractorScope?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setScopeMode("all")}
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${
+                  scopeMode === "all"
+                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-400"
+                    : "bg-[#1C1A2E] border-white/10 text-slate-400 hover:border-white/20"
+                }`}
+                data-testid="scope-mode-all"
+              >
+                Alle panden
+              </button>
+              <button
+                type="button"
+                onClick={() => setScopeMode("specific")}
+                className={`flex-1 py-2 px-3 rounded-lg border text-sm transition-colors ${
+                  scopeMode === "specific"
+                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-400"
+                    : "bg-[#1C1A2E] border-white/10 text-slate-400 hover:border-white/20"
+                }`}
+                data-testid="scope-mode-specific"
+              >
+                Specifieke panden
+              </button>
+            </div>
+
+            {scopeMode === "specific" && (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {properties.map((prop) => (
+                  <label
+                    key={prop.id}
+                    className="flex items-center gap-3 p-2.5 rounded-lg bg-[#1C1A2E] border border-white/5 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selectedPropertyIds.includes(prop.id)}
+                      onCheckedChange={() => togglePropertySelection(prop.id)}
+                      data-testid={`scope-property-${prop.id}`}
+                    />
+                    <span className="text-sm text-white">{prop.name}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setEditingContractorScope(null)}
+              className="border-white/10 text-white"
+            >
+              Annuleren
+            </Button>
+            <Button
+              onClick={handleSaveContractorScope}
+              disabled={savingScope || (scopeMode === "specific" && selectedPropertyIds.length === 0)}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              {savingScope ? "Opslaan..." : "Wijzigingen opslaan"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Delete Property AlertDialog */}
       <AlertDialog open={!!pendingDeleteProperty} onOpenChange={(open) => !open && setPendingDeleteProperty(null)}>
