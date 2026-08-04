@@ -131,3 +131,77 @@ def test_update_scope_rejects_property_not_owned_by_caller():
         headers={"Authorization": f"Bearer {landlord_a_token}"},
     )
     assert resp.status_code == 400, resp.text
+
+
+def test_scope_update_does_not_affect_other_landlords_scope_for_shared_contractor():
+    """A contractor can be linked to multiple landlords. Landlord A sets a
+    scope for their own property; landlord B (who separately links the same
+    contractor) later updates their own scope. B's write must not touch A's
+    rows for A's own property."""
+    landlord_a_token, property_a_id = _create_landlord_with_property("shared_owner_a")
+    landlord_b_token, property_b_id = _create_landlord_with_property("shared_owner_b")
+
+    contractor_email = unique_test_email("test_scope_contractor_shared")
+    invite_a_resp = requests.post(
+        f"{BASE_URL}/api/contractors/invite",
+        json={"email": contractor_email, "name": "Shared Contractor"},
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert invite_a_resp.status_code == 200, invite_a_resp.text
+    invite_a_token = get_contractor_invite_token(contractor_email)
+    assert invite_a_token, f"no contractor_invites row found for {contractor_email}"
+
+    contractor_id, _ = create_confirmed_test_user(
+        role="contractor",
+        email=contractor_email,
+        password="test123",
+        name="Shared Contractor",
+        invite_token=invite_a_token,
+    )
+
+    # Link the same (already-registered) contractor to landlord B too — the
+    # existing profile lookup path in invite_contractor creates the link
+    # immediately (no second invite-token flow needed for an already-registered
+    # contractor).
+    invite_b_resp = requests.post(
+        f"{BASE_URL}/api/contractors/invite",
+        json={"email": contractor_email, "name": "Shared Contractor"},
+        headers={"Authorization": f"Bearer {landlord_b_token}"},
+    )
+    assert invite_b_resp.status_code == 200, invite_b_resp.text
+    assert invite_b_resp.json()["status"] == "gekoppeld", invite_b_resp.text
+
+    # A scopes the contractor to A's own property.
+    scope_a_resp = requests.put(
+        f"{BASE_URL}/api/contractors/{contractor_id}/property-scope",
+        json={"property_ids": [property_a_id]},
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert scope_a_resp.status_code == 200, scope_a_resp.text
+
+    # B scopes the (shared) contractor to B's own property.
+    scope_b_resp = requests.put(
+        f"{BASE_URL}/api/contractors/{contractor_id}/property-scope",
+        json={"property_ids": [property_b_id]},
+        headers={"Authorization": f"Bearer {landlord_b_token}"},
+    )
+    assert scope_b_resp.status_code == 200, scope_b_resp.text
+
+    # A's own view of the contractor's scope must still show A's property —
+    # B's write must not have deleted A's row.
+    my_list_a_resp = requests.get(
+        f"{BASE_URL}/api/contractors/my-list",
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert my_list_a_resp.status_code == 200, my_list_a_resp.text
+    entry_a = next(c for c in my_list_a_resp.json() if c["id"] == contractor_id)
+    assert entry_a["scope_property_ids"] == [property_a_id]
+
+    # B's own view must show only B's property.
+    my_list_b_resp = requests.get(
+        f"{BASE_URL}/api/contractors/my-list",
+        headers={"Authorization": f"Bearer {landlord_b_token}"},
+    )
+    assert my_list_b_resp.status_code == 200, my_list_b_resp.text
+    entry_b = next(c for c in my_list_b_resp.json() if c["id"] == contractor_id)
+    assert entry_b["scope_property_ids"] == [property_b_id]

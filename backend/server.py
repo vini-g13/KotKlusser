@@ -1660,7 +1660,11 @@ async def update_contractor_scope(
         if owned_count != len(data.property_ids):
             raise HTTPException(status_code=400, detail='Eén of meer panden zijn ongeldig')
 
-    await execute("delete from contractor_property_links where contractor_id = $1", uuid.UUID(contractor_id))
+    await execute(
+        "delete from contractor_property_links where contractor_id = $1 "
+        "and property_id in (select id from properties where landlord_id = $2)",
+        uuid.UUID(contractor_id), uuid.UUID(current_user['id']),
+    )
     for property_id in data.property_ids:
         await execute(
             "insert into contractor_property_links (contractor_id, property_id) values ($1, $2)",
