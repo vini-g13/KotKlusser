@@ -64,11 +64,10 @@ const LandlordProfilePage = () => {
 
   const fetchProfile = async () => {
     try {
-      const [profileRes, requestsRes, propsRes, contractorsRes] = await Promise.all([
+      const [profileRes, requestsRes, propsRes] = await Promise.all([
         authAxios.get("/profile"),
         authAxios.get("/profile/landlord-email-change-requests"),
-        authAxios.get("/properties"),
-        authAxios.get("/contractors/my-list")
+        authAxios.get("/properties")
       ]);
       setProfile(profileRes.data);
       setFormData({
@@ -79,12 +78,22 @@ const LandlordProfilePage = () => {
       });
       setEmailRequests(requestsRes.data);
       setProperties(propsRes.data);
-      setContractors(contractorsRes.data);
     } catch (error) {
       toast.error("Kon profiel niet laden");
       navigate("/verhuurder");
+      return;
     } finally {
       setLoading(false);
+    }
+
+    try {
+      const contractorsRes = await authAxios.get("/contractors/my-list");
+      setContractors(contractorsRes.data);
+    } catch (error) {
+      // Mijn Aannemers is secondary to the rest of this page — a failure
+      // here (e.g. a brief backend/frontend deploy-order mismatch) must
+      // not lock a landlord out of profile editing or Mijn Panden.
+      setContractors([]);
     }
   };
 
@@ -120,7 +129,7 @@ const LandlordProfilePage = () => {
 
   const handleEditContractorScope = (contractor) => {
     setEditingContractorScope(contractor);
-    if (contractor.scope_property_ids.length === 0) {
+    if ((contractor.scope_property_ids || []).length === 0) {
       setScopeMode("all");
       setSelectedPropertyIds([]);
     } else {
@@ -637,9 +646,9 @@ const LandlordProfilePage = () => {
                         {[contractor.specialty, contractor.region].filter(Boolean).join(' · ') || contractor.email}
                       </p>
                       <Badge className="bg-white/5 text-slate-400 border-white/10 text-xs mt-1.5">
-                        {contractor.scope_property_ids.length === 0
+                        {(contractor.scope_property_ids || []).length === 0
                           ? "Alle panden"
-                          : `${contractor.scope_property_ids.length} specifiek${contractor.scope_property_ids.length === 1 ? "" : "e"} pand${contractor.scope_property_ids.length === 1 ? "" : "en"}`}
+                          : `${(contractor.scope_property_ids || []).length} specifiek${(contractor.scope_property_ids || []).length === 1 ? "" : "e"} pand${(contractor.scope_property_ids || []).length === 1 ? "" : "en"}`}
                       </Badge>
                     </div>
                     <Button

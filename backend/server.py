@@ -1639,6 +1639,7 @@ async def my_contractors(
           and cpl.property_id in (select id from properties where landlord_id = $1)
         where cll.landlord_id = $1 and pr.role = 'contractor'
         group by pr.id, pr.name, au.email, pr.specialty, pr.region
+        order by pr.name
         """,
         uuid.UUID(current_user['id']),
     )
