@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { Calendar } from "../components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "../components/ui/popover";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
+import { AlertDialog, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogCancel, AlertDialogAction } from "../components/ui/alert-dialog";
 import { toast } from "sonner";
 import {
   ArrowLeft, Send, Upload, Clock, MapPin, User, X,
@@ -50,6 +51,7 @@ const TicketDetail = () => {
   const [aannemerResults, setAannemerResults] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [assignLoading, setAssignLoading] = useState(false);
+  const [pendingOutOfScopeAannemer, setPendingOutOfScopeAannemer] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -179,7 +181,8 @@ const TicketDetail = () => {
     if (q.length < 2) { setAannemerResults([]); return; }
     setSearchLoading(true);
     try {
-      const res = await authAxios.get(`/contractors/search?q=${encodeURIComponent(q)}`);
+      const propertyParam = ticket.property_id ? `&property_id=${encodeURIComponent(ticket.property_id)}` : '';
+      const res = await authAxios.get(`/contractors/search?q=${encodeURIComponent(q)}${propertyParam}`);
       setAannemerResults(res.data);
     } catch {
       setAannemerResults([]);
@@ -516,7 +519,7 @@ const TicketDetail = () => {
                           {aannemerResults.map((a) => (
                             <button
                               key={a.id}
-                              onClick={() => handleAssignAannemer(a)}
+                              onClick={() => a.in_scope === false ? setPendingOutOfScopeAannemer(a) : handleAssignAannemer(a)}
                               disabled={assignLoading}
                               className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-left"
                             >
@@ -528,6 +531,9 @@ const TicketDetail = () => {
                                 <p className="text-xs text-slate-400 truncate">
                                   {[a.specialty, a.region].filter(Boolean).join(' · ') || a.email}
                                 </p>
+                                {a.in_scope === false && (
+                                  <p className="text-xs text-amber-400 mt-0.5">Niet gekoppeld aan dit pand</p>
+                                )}
                               </div>
                             </button>
                           ))}
@@ -639,6 +645,32 @@ const TicketDetail = () => {
           </Button>
         </form>
       </div>
+
+      <AlertDialog open={!!pendingOutOfScopeAannemer} onOpenChange={(open) => !open && setPendingOutOfScopeAannemer(null)}>
+        <AlertDialogContent className="bg-[#161425] border-white/10">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Aannemer niet gekoppeld aan dit pand</AlertDialogTitle>
+            <AlertDialogDescription className="text-slate-400">
+              <strong className="text-white">{pendingOutOfScopeAannemer?.name}</strong> is niet gekoppeld aan dit specifieke pand. Wilt u deze aannemer toch toewijzen aan deze melding?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/10 text-white bg-transparent hover:bg-white/5">
+              Annuleren
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const aannemer = pendingOutOfScopeAannemer;
+                setPendingOutOfScopeAannemer(null);
+                handleAssignAannemer(aannemer);
+              }}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            >
+              Toch toewijzen
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
