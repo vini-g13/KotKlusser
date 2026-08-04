@@ -173,3 +173,87 @@ def test_search_contractors_matches_on_region():
     )
     assert unrelated_resp.status_code == 200, unrelated_resp.text
     assert unrelated_resp.json() == [], unrelated_resp.text
+
+
+def test_search_in_scope_unaffected_by_a_different_landlords_scope_restriction():
+    """Landlord A restricts a contractor to A's own property. Landlord B,
+    completely unrelated to A, must NOT see that contractor as out-of-scope
+    for B's own property just because the contractor happens to be scoped
+    by a different landlord somewhere else."""
+    _, landlord_a_token = create_confirmed_test_user(
+        role="landlord",
+        email=unique_test_email("test_search_scope_isolation_landlord_a"),
+        password="test123",
+        name="Isolation Test Landlord A",
+    )
+    prop_a_resp = requests.post(
+        f"{BASE_URL}/api/properties",
+        json={
+            "name": "Isolation Test Property A",
+            "street": "Teststraat", "house_number": "1",
+            "postal_code": "3500", "city": "Hasselt",
+            "floor_count": 2,
+        },
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert prop_a_resp.status_code == 200, prop_a_resp.text
+    property_a_id = prop_a_resp.json()["id"]
+
+    unique_specialty = f"Loodgieterij-{uuid.uuid4().hex[:8]}"
+    contractor_email = unique_test_email("test_search_scope_isolation_contractor")
+    invite_resp = requests.post(
+        f"{BASE_URL}/api/contractors/invite",
+        json={"email": contractor_email, "name": "Isolation Test Contractor"},
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert invite_resp.status_code == 200, invite_resp.text
+    invite_token = get_contractor_invite_token(contractor_email)
+    assert invite_token, f"no contractor_invites row found for {contractor_email}"
+
+    contractor_id, _ = create_confirmed_test_user(
+        role="contractor",
+        email=contractor_email,
+        password="test123",
+        name="Isolation Test Contractor",
+        specialty=unique_specialty,
+        invite_token=invite_token,
+    )
+
+    # A restricts the contractor to A's own property.
+    scope_resp = requests.put(
+        f"{BASE_URL}/api/contractors/{contractor_id}/property-scope",
+        json={"property_ids": [property_a_id]},
+        headers={"Authorization": f"Bearer {landlord_a_token}"},
+    )
+    assert scope_resp.status_code == 200, scope_resp.text
+
+    # A completely unrelated landlord B, searching for the same contractor
+    # from B's own property, must see them as in_scope=True — B never
+    # restricted this contractor, so A's restriction must not leak into B's view.
+    _, landlord_b_token = create_confirmed_test_user(
+        role="landlord",
+        email=unique_test_email("test_search_scope_isolation_landlord_b"),
+        password="test123",
+        name="Isolation Test Landlord B",
+    )
+    prop_b_resp = requests.post(
+        f"{BASE_URL}/api/properties",
+        json={
+            "name": "Isolation Test Property B",
+            "street": "Teststraat", "house_number": "2",
+            "postal_code": "9000", "city": "Gent",
+            "floor_count": 2,
+        },
+        headers={"Authorization": f"Bearer {landlord_b_token}"},
+    )
+    assert prop_b_resp.status_code == 200, prop_b_resp.text
+    property_b_id = prop_b_resp.json()["id"]
+
+    resp = requests.get(
+        f"{BASE_URL}/api/contractors/search",
+        params={"q": unique_specialty, "property_id": property_b_id},
+        headers={"Authorization": f"Bearer {landlord_b_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    result = next(r for r in resp.json() if r["email"] == contractor_email)
+    assert result["in_scope"] is True

@@ -1599,7 +1599,9 @@ async def search_contractors(
                array_remove(array_agg(cpl.property_id), null) as scope_property_ids
         from profiles pr
         join auth.users au on au.id = pr.id
-        left join contractor_property_links cpl on cpl.contractor_id = pr.id
+        left join contractor_property_links cpl
+          on cpl.contractor_id = pr.id
+          and cpl.property_id in (select id from properties where landlord_id = $2)
         where pr.role = 'contractor' and (
             pr.name ilike $1 or au.email ilike $1 or pr.specialty ilike $1 or pr.region ilike $1
         )
@@ -1607,7 +1609,7 @@ async def search_contractors(
         order by pr.name
         limit 10
         """,
-        pattern,
+        pattern, uuid.UUID(current_user['id']),
     )
     results = []
     for r in rows:
