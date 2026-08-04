@@ -1589,27 +1589,36 @@ async def invite_contractor(
 @api_router.get("/contractors/search")
 async def search_contractors(
     q: str,
+    property_id: Optional[str] = None,
     current_user: dict = Depends(require_role('landlord', 'Alleen verhuurders kunnen aannemers zoeken')),
 ):
     pattern = f"%{q}%"
     rows = await fetch(
         """
-        select pr.id, pr.name, au.email, pr.specialty, pr.region
+        select pr.id, pr.name, au.email, pr.specialty, pr.region,
+               array_remove(array_agg(cpl.property_id), null) as scope_property_ids
         from profiles pr
         join auth.users au on au.id = pr.id
+        left join contractor_property_links cpl on cpl.contractor_id = pr.id
         where pr.role = 'contractor' and (
             pr.name ilike $1 or au.email ilike $1 or pr.specialty ilike $1 or pr.region ilike $1
         )
+        group by pr.id, pr.name, au.email, pr.specialty, pr.region
         order by pr.name
         limit 10
         """,
         pattern,
     )
-    return [
-        {'id': str(r['id']), 'name': r['name'], 'email': r['email'],
-         'specialty': r.get('specialty') or '', 'region': r.get('region') or ''}
-        for r in rows
-    ]
+    results = []
+    for r in rows:
+        scope_ids = [str(pid) for pid in (r['scope_property_ids'] or [])]
+        in_scope = (not scope_ids) or (property_id is not None and property_id in scope_ids)
+        results.append({
+            'id': str(r['id']), 'name': r['name'], 'email': r['email'],
+            'specialty': r.get('specialty') or '', 'region': r.get('region') or '',
+            'in_scope': in_scope,
+        })
+    return results
 
 
 @api_router.get("/contractors/my-list")
